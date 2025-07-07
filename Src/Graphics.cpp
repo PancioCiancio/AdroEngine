@@ -1,0 +1,348 @@
+//
+// Created by apant on 07/07/2025.
+//
+
+#include "Graphics.h"
+
+#include <cassert>
+#include <stdexcept>
+
+
+void Graphics::CreateInstance(
+	const std::vector<const char*>& layers_requested,
+	const std::vector<const char*>& extensions_requested,
+	VkAllocationCallbacks*          p_allocator,
+	VkInstance*                     p_instance)
+{
+	uint32_t layer_count = 0;
+	VK_CHECK(vkEnumerateInstanceLayerProperties(
+		&layer_count,
+		nullptr));
+
+	std::vector<VkLayerProperties> layer_propertieses(layer_count);
+	VK_CHECK(vkEnumerateInstanceLayerProperties(
+		&layer_count,
+		&layer_propertieses[0]));
+
+	uint32_t extension_count = 0;
+	VK_CHECK(vkEnumerateInstanceExtensionProperties(
+		nullptr,
+		&extension_count,
+		nullptr));
+
+	std::vector<VkExtensionProperties> extension_propertieses(extension_count);
+	VK_CHECK(vkEnumerateInstanceExtensionProperties(
+		nullptr,
+		&extension_count,
+		&extension_propertieses[0]));
+
+	// @todo	check for layer and extensions required.
+
+	const VkDebugUtilsMessengerCreateInfoEXT debug_create_info_ext = GetDebugMessengerCreateInfo();
+
+	const VkApplicationInfo app_info = {
+		.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+		.pApplicationName = "Adro",
+		.applicationVersion = 1,
+		.apiVersion = VK_MAKE_VERSION(1, 0, 0)
+	};
+
+	const VkInstanceCreateInfo create_info = {
+		.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+		.pNext = &debug_create_info_ext,
+		.pApplicationInfo = &app_info,
+		.enabledExtensionCount = static_cast<uint32_t>(extensions_requested.size()),
+		.ppEnabledExtensionNames = &extensions_requested[0],
+	};
+
+	VK_CHECK(vkCreateInstance(
+		&create_info,
+		p_allocator,
+		p_instance));
+}
+
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+	VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
+	VkDebugUtilsMessageTypeFlagsEXT             messageType,
+	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+	void*                                       pUserData)
+{
+	const char* severity = "";
+	switch (messageSeverity)
+	{
+	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+		severity = "[VERBOSE]";
+		break;
+	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+		severity = "[INFO]";
+		break;
+	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+		severity = "[WARNING]";
+		break;
+	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+		severity = "[ERROR]";
+		break;
+	default:
+		severity = "";
+	}
+
+	// @todo	cover the message type as well....
+
+	std::printf("[VK] %s %s\n", severity, pCallbackData->pMessage);
+
+	return VK_FALSE;
+}
+
+VkDebugUtilsMessengerCreateInfoEXT Graphics::GetDebugMessengerCreateInfo()
+{
+	return {
+		.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+		.pNext = nullptr,
+		.flags = 0,
+		.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+		                   VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+		.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+		               VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+		               VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+		.pfnUserCallback = debugCallback,
+		.pUserData = nullptr,
+	};
+}
+
+void Graphics::CreateDebugMessenger(
+	VkInstance                instance,
+	VkAllocationCallbacks*    p_allocator,
+	VkDebugUtilsMessengerEXT* p_debuge_messenger_ext)
+{
+	const VkDebugUtilsMessengerCreateInfoEXT debug_create_info_ext = GetDebugMessengerCreateInfo();
+
+	VK_CHECK(vkCreateDebugUtilsMessengerEXT(instance,
+		&debug_create_info_ext,
+		p_allocator,
+		p_debuge_messenger_ext));
+}
+
+uint32_t Graphics::FindMemoryTypeIdx(
+	uint32_t                                type_filter,
+	VkMemoryPropertyFlags                   memory_property_flags,
+	const VkPhysicalDeviceMemoryProperties& physical_device_memory_properties)
+{
+	for (uint32_t i = 0; i < physical_device_memory_properties.memoryTypeCount; i++)
+	{
+		const bool is_type_supported       = (type_filter & (1 << i)) != 0;
+		const bool has_required_properties = (physical_device_memory_properties.memoryTypes[i].propertyFlags &
+		                                      memory_property_flags)
+		                                     == memory_property_flags;
+
+		if (is_type_supported && has_required_properties)
+		{
+			return i;
+		}
+	}
+
+	throw std::runtime_error("Failed to find suitable memory type!");
+}
+
+void Graphics::CreateShaderModule(
+	VkDevice                 device,
+	const std::vector<char>& shader_code,
+	VkAllocationCallbacks*   p_allocator,
+	VkShaderModule*          p_shader_module)
+{
+	const VkShaderModuleCreateInfo create_info = {
+		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.codeSize = static_cast<uint32_t>(shader_code.size()),
+		.pCode = reinterpret_cast<const uint32_t*>(&shader_code[0]),
+	};
+
+	VK_CHECK(vkCreateShaderModule(
+		device,
+		&create_info,
+		p_allocator,
+		p_shader_module));
+}
+
+void Graphics::CreateBuffer(
+	VkDevice                 device,
+	VkPhysicalDevice         physical_device,
+	VkDeviceSize             size,
+	VkBufferUsageFlags       usage_flags,
+	VkFormat                 format,
+	VkMemoryPropertyFlagBits memory_property_flag_bits,
+	VkAllocationCallbacks*   p_allocator,
+	VkBuffer*                p_buffer,
+	VkDeviceMemory*          p_memory)
+{
+	const VkBufferCreateInfo buffer_create_info = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.flags = 0,
+		.size = size,
+		.usage = usage_flags,
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices = nullptr,
+	};
+
+	VK_CHECK(vkCreateBuffer(
+		device,
+		&buffer_create_info,
+		p_allocator,
+		p_buffer));
+
+	VkMemoryRequirements mem_requirements = {};
+	vkGetBufferMemoryRequirements(
+		device,
+		*p_buffer,
+		&mem_requirements);
+
+	VkPhysicalDeviceMemoryProperties memory_properties = {};
+	vkGetPhysicalDeviceMemoryProperties(
+		physical_device,
+		&memory_properties);
+
+	const uint32_t memory_type_index = FindMemoryTypeIdx(
+		mem_requirements.memoryTypeBits,
+		memory_property_flag_bits,
+		memory_properties);
+
+	const VkMemoryAllocateInfo buffer_memory_allocate_info = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.pNext = nullptr,
+		.allocationSize = mem_requirements.size,
+		.memoryTypeIndex = memory_type_index
+	};
+
+	VK_CHECK(vkAllocateMemory(device, &buffer_memory_allocate_info, p_allocator, p_memory));
+	VK_CHECK(vkBindBufferMemory(device, *p_buffer, *p_memory, 0));
+}
+
+void Graphics::CreateBufferView(
+	VkDevice               device,
+	VkBuffer               buffer,
+	VkFormat               format,
+	VkDeviceSize           offset,
+	VkDeviceSize           range,
+	VkAllocationCallbacks* p_allocator,
+	VkBufferView*          p_buffer_view)
+{
+	const VkBufferViewCreateInfo buffer_view_create_info = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.buffer = buffer,
+		.format = format,
+		.offset = offset,
+		.range = range,
+	};
+
+	VK_CHECK(vkCreateBufferView(
+		device,
+		&buffer_view_create_info,
+		p_allocator,
+		p_buffer_view));
+}
+
+void Graphics::CreateImage(
+	VkDevice                 device,
+	VkPhysicalDevice         physical_device,
+	VkImageType              image_type,
+	VkFormat                 format,
+	VkExtent3D               extent,
+	VkSampleCountFlagBits    samples,
+	VkImageTiling            tiling,
+	VkImageUsageFlags        usage,
+	VkMemoryPropertyFlagBits memory_property_flag_bits,
+	VkAllocationCallbacks*   p_allocator,
+	VkImage*                 p_image,
+	VkDeviceMemory*          p_memory)
+{
+	VkImageCreateInfo image_info = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.imageType = image_type,
+		.format = format,
+		.extent = extent,
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = samples,
+		.tiling = tiling,
+		.usage = usage,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices = nullptr,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+	};
+
+	VK_CHECK(vkCreateImage(
+		device,
+		&image_info,
+		nullptr,
+		p_image));
+
+	VkMemoryRequirements mem_requirements = {};
+	vkGetImageMemoryRequirements(device, *p_image, &mem_requirements);
+
+	VkPhysicalDeviceMemoryProperties memory_properties = {};
+	vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
+
+	const uint32_t mem_type_idx = FindMemoryTypeIdx(
+		mem_requirements.memoryTypeBits,
+		memory_property_flag_bits,
+		memory_properties);
+
+	const VkMemoryAllocateInfo allocate_info = {
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.pNext = nullptr,
+		.allocationSize = mem_requirements.size,
+		.memoryTypeIndex = mem_type_idx,
+	};
+
+	VK_CHECK(vkAllocateMemory(
+		device,
+		&allocate_info,
+		p_allocator,
+		p_memory));
+
+	VK_CHECK(vkBindImageMemory(
+		device,
+		*p_image,
+		*p_memory,
+		0));
+}
+
+void Graphics::CreateImageView(
+	VkDevice               device,
+	VkImage                image,
+	VkImageViewType        view_type,
+	VkFormat               format,
+	VkComponentMapping     components,
+	VkAllocationCallbacks* p_allocator,
+	VkImageView*           p_image_view)
+{
+	const VkImageSubresourceRange image_subresource_range = {
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.baseMipLevel = 0,
+		.levelCount = 1,
+		.baseArrayLayer = 0,
+		.layerCount = 1,
+	};
+
+	const VkImageViewCreateInfo image_view_create_info = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.image = image,
+		.viewType = view_type,
+		.format = format,
+		.components = components,
+		.subresourceRange = image_subresource_range,
+	};
+
+	VK_CHECK(vkCreateImageView(
+		device,
+		&image_view_create_info,
+		p_allocator,
+		p_image_view));
+}

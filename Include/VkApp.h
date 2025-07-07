@@ -6,6 +6,7 @@
 #define VKAPP_H
 
 #include <volk/volk.h>
+#include <SDL2/SDL.h>
 #include <vector>
 
 class Allocator
@@ -66,17 +67,38 @@ class VkApp
 {
 public:
 	VkResult Init();
+
+	VkResult Update();
+
 	VkResult TearDown() const;
 
 	VkResult CreateBufferExample();
+
 	VkResult CreateImageExample();
 
 private:
-	VkAllocationCallbacks         allocator_    = {};
-	VkInstance                    instance_     = {};
-	std::vector<VkPhysicalDevice> gpus_         = {};
-	uint8_t                       gpu_selected_ = {};
-	VkDevice                      device_       = {};
+	VkAllocationCallbacks         allocator_       = {};
+	VkInstance                    instance_        = {};
+	VkDebugUtilsMessengerEXT      debug_messenger_ = {};
+	std::vector<VkPhysicalDevice> gpus_            = {};
+	uint8_t                       gpu_selected_    = {};
+	VkDevice                      device_          = {};
+	VkQueue                       queue_           = {};
+	VkCommandPool                 command_pool_    = {};
+	VkCommandBuffer               command_buffer_  = {};
+	VkPipelineLayout              pipeline_layout_ = {};
+	VkPipeline                    pipeline_        = {};
+
+	SDL_Window*                window_                    = {};
+	VkSurfaceKHR               surface_                   = {};
+	VkSwapchainKHR             swapchain_                 = {};
+	std::vector<VkImage>       swapchain_images_          = {};
+	std::vector<VkImageView>   swapchain_image_views_     = {};
+	VkSemaphore                image_available_semaphore_ = {};
+	VkSemaphore                render_finished_semaphore_ = {};
+	VkFence                    submit_finished_fence_     = {};
+	VkRenderPass               render_pass_               = {};
+	std::vector<VkFramebuffer> framebuffers_              = {};
 };
 
 #endif //VKAPP_H
