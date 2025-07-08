@@ -37,6 +37,14 @@ public:
 		VkAllocationCallbacks*    p_allocator,
 		VkDebugUtilsMessengerEXT* p_debuge_messenger_ext);
 
+	/// Return the gpu supporting the requested features.
+	/// @warning If any gpu doesn't support the requested features and extensions, the program is alt.
+	static void SelectGpu(
+		VkInstance                      instance,
+		VkPhysicalDeviceFeatures        fts_requested,
+		const std::vector<const char*>& extensions_requested,
+		VkPhysicalDevice*               p_gpu);
+
 	/// Provide the suitable memory type to bind resources.
 	/// @todo Sketch implementation. Refactor it...
 	static uint32_t FindMemoryTypeIdx(

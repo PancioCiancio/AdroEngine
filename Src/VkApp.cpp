@@ -106,20 +106,6 @@ VkResult VkApp::Init()
 		? VK_SUCCESS
 		: VK_ERROR_UNKNOWN);
 
-	// First figure out how many devices are in the system
-	uint32_t gpu_count = 0;
-	VK_CHECK(vkEnumeratePhysicalDevices(
-		instance_,
-		&gpu_count,
-		nullptr));
-
-	// Size the device array appropriately and get the physical device handles
-	gpus_.resize(gpu_count);
-	VK_CHECK(vkEnumeratePhysicalDevices(
-		instance_,
-		&gpu_count,
-		&gpus_[0]));
-
 	// List the required gpu features
 	const VkPhysicalDeviceFeatures gpu_required_features = {
 		.geometryShader = VK_TRUE,
@@ -127,42 +113,15 @@ VkResult VkApp::Init()
 		.multiDrawIndirect = VK_TRUE,
 	};
 
-	// Select gpu algorithm.
-	for (size_t i = 0; i < gpus_.size(); i++)
-	{
-		const VkPhysicalDevice gpu = gpus_[i];
+	// List the required gpu extensions
+	const std::vector<const char*> device_extensions = {
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
-		VkPhysicalDeviceProperties gpu_properties = {};
-		vkGetPhysicalDeviceProperties(gpu, &gpu_properties);
-
-		// You might need to check format properties as well
-		// vkGetPhysicalDeviceFormatProperties(gpu, )
-
-		// You might need to check image properties as well
-		// vkGetPhysicalDeviceImageFormatProperties(gpu)
-
-		// Query physical device extensions.
-		uint32_t gpu_extension_count = 0;
-		VK_CHECK(vkEnumerateDeviceExtensionProperties(
-			gpu,
-			nullptr,
-			&gpu_extension_count,
-			nullptr));
-
-		std::vector<VkExtensionProperties> gpu_extension_propertieses(gpu_extension_count);
-		VK_CHECK(vkEnumerateDeviceExtensionProperties(
-			gpu,
-			nullptr,
-			&gpu_extension_count,
-			&gpu_extension_propertieses[0]));
-
-		if (gpu_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
-		{
-			gpu_selected_ = i;
-		}
-
-		// Check also if the features required are supported...
-	}
+	Graphics::SelectGpu(
+		instance_,
+		gpu_required_features,
+		device_extensions,
+		&gpu_);
 
 	const VkDeviceQueueCreateInfo queue_create_info = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -173,13 +132,10 @@ VkResult VkApp::Init()
 	};
 
 	VK_CHECK(vkGetPhysicalDeviceWin32PresentationSupportKHR(
-			gpus_[gpu_selected_],
+			gpu_,
 			0)
 		? VK_SUCCESS
 		: VK_ERROR_UNKNOWN);
-
-	std::vector<const char*> device_extensions = {
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
 	const VkDeviceCreateInfo device_create_info = {
 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -194,7 +150,7 @@ VkResult VkApp::Init()
 	};
 
 	VK_CHECK(vkCreateDevice(
-		gpus_[gpu_selected_],
+		gpu_,
 		&device_create_info,
 		&allocator_,
 		&device_));
@@ -208,19 +164,19 @@ VkResult VkApp::Init()
 	// Swapchain
 	VkSurfaceCapabilitiesKHR surface_capabilities = {};
 	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-		gpus_[gpu_selected_],
+		gpu_,
 		surface_,
 		&surface_capabilities));
 
 	uint32_t surface_format_count = 0u;
 	VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
-		gpus_[gpu_selected_],
+		gpu_,
 		surface_,
 		&surface_format_count,
 		nullptr));
 	std::vector<VkSurfaceFormatKHR> surface_formats(surface_format_count);
 	VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
-		gpus_[gpu_selected_],
+		gpu_,
 		surface_,
 		&surface_format_count,
 		&surface_formats[0]));
