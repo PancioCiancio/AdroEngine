@@ -104,6 +104,8 @@ private:
 	VkImage        framebuffer_sample_image_        = {};
 	VkImageView    framebuffer_sample_image_view_   = {};
 	VkDeviceMemory framebuffer_sample_image_memory_ = {};
+
+	VkSurfaceCapabilitiesKHR surface_capabilities_ = {};
 };
 
 #endif //VKAPP_H

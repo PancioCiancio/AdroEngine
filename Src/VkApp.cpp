@@ -8,7 +8,7 @@
 #include "Graphics.h"
 
 #include <cassert>
-#include <iostream>
+#include <sstream>
 #include <SDL2/SDL_vulkan.h>
 
 void* Allocator::Allocation(
@@ -155,30 +155,29 @@ VkResult VkApp::Init()
 		{VK_FORMAT_R8G8B8A8_SRGB},
 		&surface_format);
 
-	VkSurfaceCapabilitiesKHR surface_capabilities = {};
 	Graphics::QuerySurfaceCapabilities(
 		gpu_,
 		surface_,
-		&surface_capabilities);
+		&surface_capabilities_);
 
 	Graphics::CreateSwapchain(
 		device_,
 		surface_,
 		&surface_format,
-		&surface_capabilities,
+		&surface_capabilities_,
 		// At this point is VK_NULL_HANDLE
 		swapchain_,
 		&allocator_,
 		&swapchain_);
 
-	swapchain_images_.resize(surface_capabilities.minImageCount);
+	swapchain_images_.resize(surface_capabilities_.minImageCount);
 	Graphics::QuerySwapchainImages(
 		device_,
 		swapchain_,
 		&swapchain_images_[0]);
 
-	swapchain_image_views_.resize(surface_capabilities.minImageCount);
-	for (uint32_t i = 0; i < surface_capabilities.minImageCount; i++)
+	swapchain_image_views_.resize(surface_capabilities_.minImageCount);
+	for (uint32_t i = 0; i < surface_capabilities_.minImageCount; i++)
 	{
 		Graphics::CreateImageView(
 			device_,
@@ -206,8 +205,8 @@ VkResult VkApp::Init()
 		VK_IMAGE_TYPE_2D,
 		surface_format.format,
 		{
-			surface_capabilities.currentExtent.width,
-			surface_capabilities.currentExtent.height,
+			surface_capabilities_.currentExtent.width,
+			surface_capabilities_.currentExtent.height,
 			1
 		},
 		sample_counts,
@@ -275,12 +274,12 @@ VkResult VkApp::Init()
 		.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 	};
 
-	const VkAttachmentReference color_attachment_ref = {
+	constexpr VkAttachmentReference color_attachment_ref = {
 		.attachment = 0,
 		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 	};
 
-	VkAttachmentDescription color_attachment_resolve = {
+	const VkAttachmentDescription color_attachment_resolve = {
 		.flags = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.format = surface_format.format,
 		.samples = VK_SAMPLE_COUNT_1_BIT,
@@ -292,7 +291,7 @@ VkResult VkApp::Init()
 		.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 	};
 
-	VkAttachmentReference color_attachment_resolve_ref = {
+	constexpr VkAttachmentReference color_attachment_resolve_ref = {
 		.attachment = 1,
 		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 	};
@@ -310,7 +309,7 @@ VkResult VkApp::Init()
 		.pPreserveAttachments = nullptr,
 	};
 
-	const VkSubpassDependency dependency = {
+	constexpr VkSubpassDependency dependency = {
 		.srcSubpass = VK_SUBPASS_EXTERNAL,
 		.dstSubpass = 0,
 		.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -344,9 +343,9 @@ VkResult VkApp::Init()
 		&allocator_,
 		&render_pass_));
 
-	framebuffers_.resize(surface_capabilities.minImageCount);
+	framebuffers_.resize(surface_capabilities_.minImageCount);
 
-	for (size_t i = 0; i < surface_capabilities.minImageCount; i++)
+	for (size_t i = 0; i < surface_capabilities_.minImageCount; i++)
 	{
 		constexpr uint32_t attachments_count              = 2;
 		const VkImageView  attachments[attachments_count] = {
@@ -361,8 +360,8 @@ VkResult VkApp::Init()
 			.renderPass = render_pass_,
 			.attachmentCount = attachments_count,
 			.pAttachments = &attachments[0],
-			.width = surface_capabilities.currentExtent.width,
-			.height = surface_capabilities.currentExtent.height,
+			.width = surface_capabilities_.currentExtent.width,
+			.height = surface_capabilities_.currentExtent.height,
 			.layers = 1,
 		};
 
@@ -444,18 +443,18 @@ VkResult VkApp::Init()
 		.primitiveRestartEnable = VK_FALSE,
 	};
 
-	constexpr VkViewport viewport = {
+	const VkViewport viewport = {
 		.x = 0.0f,
 		.y = 0.0f,
-		.width = 640.0f,
-		.height = 480.0f,
+		.width = static_cast<float>(surface_capabilities_.currentExtent.width),
+		.height = static_cast<float>(surface_capabilities_.currentExtent.height),
 		.minDepth = 0.0f,
 		.maxDepth = 1.0f,
 	};
 
-	constexpr VkRect2D scissor = {
+	const VkRect2D scissor = {
 		.offset = {0, 0},
-		.extent = {640, 480},
+		.extent = surface_capabilities_.currentExtent,
 	};
 
 	// ReSharper disable once CppVariableCanBeMadeConstexpr
@@ -596,6 +595,216 @@ VkResult VkApp::Update()
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
 		{
+			if (event.type == SDL_WINDOWEVENT)
+			{
+				switch (event.window.event)
+				{
+				case SDL_WINDOWEVENT_SIZE_CHANGED:
+				{
+					vkDeviceWaitIdle(device_);
+
+					VkSwapchainKHR old_swapchain = swapchain_;
+
+					VkSurfaceFormatKHR surface_format = {};
+					Graphics::QuerySurfaceFormat(
+						gpu_,
+						surface_,
+						{VK_FORMAT_R8G8B8A8_SRGB},
+						&surface_format);
+
+					VkSurfaceCapabilitiesKHR old_surface_capabilities = surface_capabilities_;
+					Graphics::QuerySurfaceCapabilities(
+						gpu_,
+						surface_,
+						&surface_capabilities_);
+
+					Graphics::CreateSwapchain(
+						device_,
+						surface_,
+						&surface_format,
+						&surface_capabilities_,
+						old_swapchain,
+						&allocator_,
+						&swapchain_);
+
+					vkDestroyImageView(
+						device_,
+						framebuffer_sample_image_view_,
+						&allocator_);
+
+					vkDestroyImage(
+						device_,
+						framebuffer_sample_image_,
+						&allocator_);
+
+					for (uint32_t i = 0; i < old_surface_capabilities.minImageCount; i++)
+					{
+						vkDestroyImageView(
+							device_,
+							swapchain_image_views_[i],
+							&allocator_);
+					}
+
+					for (uint32_t i = 0; i < old_surface_capabilities.minImageCount; i++)
+					{
+						vkDestroyFramebuffer(
+							device_,
+							framebuffers_[i],
+							&allocator_);
+					}
+
+					vkDestroySwapchainKHR(
+						device_,
+						old_swapchain,
+						&allocator_);
+
+					vkDestroyCommandPool(
+						device_,
+						command_pool_,
+						&allocator_);
+
+					vkDestroySemaphore(
+						device_,
+						image_available_semaphore_,
+						&allocator_);
+
+					vkDestroySemaphore(
+						device_,
+						render_finished_semaphore_,
+						&allocator_);
+
+					vkDestroyFence(
+						device_,
+						submit_finished_fence_,
+						&allocator_);
+
+					uint32_t queue_family_index = 0;
+					Graphics::QueryQueueFamily(
+						gpu_,
+						VK_QUEUE_GRAPHICS_BIT,
+						true,
+						0,
+						nullptr,
+						&queue_family_index);
+
+					Graphics::CreateCommandPool(
+						device_,
+						VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+						queue_family_index,
+						&allocator_,
+						&command_pool_);
+
+					Graphics::CreateCommandBuffer(
+						device_,
+						command_pool_,
+						&command_buffer_);
+
+					// Synchronization
+
+					Graphics::CreateSemaphore(
+						device_,
+						&allocator_,
+						&image_available_semaphore_);
+
+					Graphics::CreateSemaphore(
+						device_,
+						&allocator_,
+						&render_finished_semaphore_);
+
+					Graphics::CreateFence(
+						device_,
+						&allocator_,
+						&submit_finished_fence_);
+
+					swapchain_images_.resize(surface_capabilities_.minImageCount);
+					Graphics::QuerySwapchainImages(
+						device_,
+						swapchain_,
+						&swapchain_images_[0]);
+
+					VkSampleCountFlagBits sample_counts = VK_SAMPLE_COUNT_1_BIT;
+					Graphics::QuerySampleCounts(
+						gpu_,
+						&sample_counts);
+
+					Graphics::CreateImage(
+						device_,
+						gpu_,
+						VK_IMAGE_TYPE_2D,
+						surface_format.format,
+						{
+							surface_capabilities_.currentExtent.width,
+							surface_capabilities_.currentExtent.height,
+							1
+						},
+						sample_counts,
+						VK_IMAGE_TILING_OPTIMAL,
+						VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+						VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+						&allocator_,
+						&framebuffer_sample_image_,
+						&framebuffer_sample_image_memory_);
+
+					Graphics::CreateImageView(
+						device_,
+						framebuffer_sample_image_,
+						VK_IMAGE_VIEW_TYPE_2D,
+						surface_format.format,
+						{
+							VK_COMPONENT_SWIZZLE_IDENTITY,
+							VK_COMPONENT_SWIZZLE_IDENTITY,
+							VK_COMPONENT_SWIZZLE_IDENTITY,
+							VK_COMPONENT_SWIZZLE_IDENTITY
+						},
+						&allocator_,
+						&framebuffer_sample_image_view_);
+
+					for (uint32_t i = 0; i < surface_capabilities_.minImageCount; i++)
+					{
+						Graphics::CreateImageView(
+							device_,
+							swapchain_images_[i],
+							VK_IMAGE_VIEW_TYPE_2D,
+							surface_format.format,
+							{
+								VK_COMPONENT_SWIZZLE_IDENTITY,
+								VK_COMPONENT_SWIZZLE_IDENTITY,
+								VK_COMPONENT_SWIZZLE_IDENTITY,
+								VK_COMPONENT_SWIZZLE_IDENTITY},
+							&allocator_,
+							&swapchain_image_views_[i]);
+
+						constexpr uint32_t attachments_count              = 2;
+						const VkImageView  attachments[attachments_count] = {
+							framebuffer_sample_image_view_, // Multisample
+							swapchain_image_views_[i], // Multisample resolver to 1 sample.
+						};
+
+						VkFramebufferCreateInfo framebuffer_info = {
+							.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+							.pNext = nullptr,
+							.flags = 0,
+							.renderPass = render_pass_,
+							.attachmentCount = attachments_count,
+							.pAttachments = &attachments[0],
+							.width = surface_capabilities_.currentExtent.width,
+							.height = surface_capabilities_.currentExtent.height,
+							.layers = 1,
+						};
+
+						vkCreateFramebuffer(
+							device_,
+							&framebuffer_info,
+							&allocator_,
+							&framebuffers_[i]);
+					}
+					break;
+				}
+				default:
+					break;
+				}
+			}
+
 			switch (event.type)
 			{
 			case SDL_QUIT:
@@ -656,7 +865,7 @@ VkResult VkApp::Update()
 			.framebuffer = framebuffers_[next_image],
 			.renderArea = {
 				.offset = {0, 0},
-				.extent = {640, 480},
+				.extent = surface_capabilities_.currentExtent,
 			},
 			.clearValueCount = 1,
 			.pClearValues = &clear_value,
@@ -672,11 +881,11 @@ VkResult VkApp::Update()
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
 			pipeline_);
 
-		constexpr VkViewport viewport = {
+		const VkViewport viewport = {
 			.x = 0.0f,
 			.y = 0.0f,
-			.width = 640.0f,
-			.height = 480.0f,
+			.width = static_cast<float>(surface_capabilities_.currentExtent.width),
+			.height = static_cast<float>(surface_capabilities_.currentExtent.height),
 			.minDepth = 0.0f,
 			.maxDepth = 1.0f,
 		};
@@ -687,9 +896,9 @@ VkResult VkApp::Update()
 			1,
 			&viewport);
 
-		constexpr VkRect2D scissor = {
+		const VkRect2D scissor = {
 			.offset = {0, 0},
-			.extent = {640, 480},
+			.extent = surface_capabilities_.currentExtent,
 		};
 
 		vkCmdSetScissor(
