@@ -100,6 +100,10 @@ private:
 	VkFence                    submit_finished_fence_     = {};
 	VkRenderPass               render_pass_               = {};
 	std::vector<VkFramebuffer> framebuffers_              = {};
+
+	VkImage        framebuffer_sample_image_        = {};
+	VkImageView    framebuffer_sample_image_view_   = {};
+	VkDeviceMemory framebuffer_sample_image_memory_ = {};
 };
 
 #endif //VKAPP_H

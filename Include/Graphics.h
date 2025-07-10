@@ -20,8 +20,6 @@ public:
 		assert(_vk_result == VK_SUCCESS);	\
 	} while (0)
 
-	/// Create graphics instance into the provided ptr.
-	/// @warning First call VolkInitialize (if using volk library).
 	static void CreateInstance(
 		const std::vector<const char*>& layers_requested,
 		const std::vector<const char*>& extensions_requested,
@@ -30,36 +28,101 @@ public:
 
 	static VkDebugUtilsMessengerCreateInfoEXT GetDebugMessengerCreateInfo();
 
-	/// Create debug messenger into the provided ptr.
-	/// @warning First call volkLoadInstance (if using volk library).
 	static void CreateDebugMessenger(
 		VkInstance                instance,
 		VkAllocationCallbacks*    p_allocator,
 		VkDebugUtilsMessengerEXT* p_debuge_messenger_ext);
 
-	/// Return the gpu supporting the requested features.
-	/// @warning If any gpu doesn't support the requested features and extensions, the program is alt.
-	static void SelectGpu(
+	static void QueryGpu(
 		VkInstance                      instance,
 		VkPhysicalDeviceFeatures        fts_requested,
 		const std::vector<const char*>& extensions_requested,
 		VkPhysicalDevice*               p_gpu);
 
-	/// Provide the suitable memory type to bind resources.
+	static void QuerySampleCounts(
+		VkPhysicalDevice       gpu,
+		VkSampleCountFlagBits* p_sample);
+
+	/// @todo Platform dependent. Consider to solve the platform implementation at static link time.
+	static void QueryQueueFamily(
+		VkPhysicalDevice gpu,
+		VkQueueFlagBits  queue_flag_bits_requested,
+		bool             must_support_presentation,
+		uint32_t         family_idx_discarded_count,
+		const uint32_t*  family_idx_discarded,
+		uint32_t*        p_queue_family_idx);
+
+	static void CreateDevice(
+		VkPhysicalDevice                gpu,
+		uint32_t                        queue_family_count,
+		const uint32_t*                 p_queue_families_idx,
+		const std::vector<const char*>& extensions,
+		const VkPhysicalDeviceFeatures* p_features,
+		const VkAllocationCallbacks*    p_allocator,
+		VkDevice*                       p_device);
+
+	static void QuerySurfaceFormat(
+		VkPhysicalDevice             gpu,
+		VkSurfaceKHR                 surface,
+		const std::vector<VkFormat>& formats_required,
+		VkSurfaceFormatKHR*          p_format);
+
+	/// Query surface capabilities and fix image count and transform.
+	static void QuerySurfaceCapabilities(
+		VkPhysicalDevice          gpu,
+		VkSurfaceKHR              surface,
+		VkSurfaceCapabilitiesKHR* p_surface_capabilities);
+
+	static void CreateSwapchain(
+		VkDevice                  device,
+		VkSurfaceKHR              surface,
+		VkSurfaceFormatKHR*       p_format,
+		VkSurfaceCapabilitiesKHR* p_capabilities,
+		VkSwapchainKHR            old_swapchain,
+		VkAllocationCallbacks*    p_allocator,
+		VkSwapchainKHR*           p_swapchain);
+
+	/// @param p_swapchain_images the size must be VkSurfaceCapabilitiesKHR::minImageCount
+	///		   You can query such image count by calling QuerySurfaceCapabilities.
+	static void QuerySwapchainImages(
+		VkDevice       device,
+		VkSwapchainKHR swapchain,
+		VkImage*       p_swapchain_images);
+
+	static void CreateCommandPool(
+		VkDevice                 device,
+		VkCommandPoolCreateFlags flags,
+		uint32_t                 queue_family_idx,
+		VkAllocationCallbacks*   p_allocator,
+		VkCommandPool*           p_command_pool);
+
+	static void CreateCommandBuffer(
+		VkDevice         device,
+		VkCommandPool    command_pool,
+		VkCommandBuffer* p_command_buffer);
+
+	static void CreateSemaphore(
+		VkDevice               device,
+		VkAllocationCallbacks* p_allocator,
+		VkSemaphore*           p_semaphore);
+
+	static void CreateFence(
+		VkDevice               device,
+		VkAllocationCallbacks* p_allocator,
+		VkFence*               p_fence);
+
 	/// @todo Sketch implementation. Refactor it...
-	static uint32_t FindMemoryTypeIdx(
+	static uint32_t QueryMemoryTypeIdx(
 		uint32_t                                type_filter,
 		VkMemoryPropertyFlags                   memory_property_flags,
 		const VkPhysicalDeviceMemoryProperties& physical_device_memory_properties);
 
-	/// Create the shader module from the provided shader program into the given ptr.
 	static void CreateShaderModule(
 		VkDevice                 device,
 		const std::vector<char>& shader_code,
 		VkAllocationCallbacks*   p_allocator,
 		VkShaderModule*          p_shader_module);
 
-	/// Create a sequential buffer into the given ptr and bind the memory to it.
 	static void CreateBuffer(
 		VkDevice                 device,
 		VkPhysicalDevice         physical_device,
@@ -71,7 +134,6 @@ public:
 		VkBuffer*                p_buffer,
 		VkDeviceMemory*          p_memory);
 
-	/// Create a view into the given buffer.
 	/// @warning	Provided buffer must be valid.
 	static void CreateBufferView(
 		VkDevice               device,
@@ -82,7 +144,6 @@ public:
 		VkAllocationCallbacks* p_allocator,
 		VkBufferView*          p_buffer_view);
 
-	/// Create an image into the given ptr and bind the memory to it.
 	static void CreateImage(
 		VkDevice                 device,
 		VkPhysicalDevice         physical_device,
@@ -97,7 +158,6 @@ public:
 		VkImage*                 p_image,
 		VkDeviceMemory*          p_memory);
 
-	/// Create a view into the given image.
 	/// @warning	Provided image must be valid.
 	static void CreateImageView(
 		VkDevice               device,

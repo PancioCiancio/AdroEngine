@@ -117,119 +117,74 @@ VkResult VkApp::Init()
 	const std::vector<const char*> device_extensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
-	Graphics::SelectGpu(
+	Graphics::QueryGpu(
 		instance_,
 		gpu_required_features,
 		device_extensions,
 		&gpu_);
 
-	const VkDeviceQueueCreateInfo queue_create_info = {
-		.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-		.flags = 0,
-		.queueFamilyIndex = 0,
-		.queueCount = 1,
-		.pQueuePriorities = nullptr,
-	};
-
-	VK_CHECK(vkGetPhysicalDeviceWin32PresentationSupportKHR(
-			gpu_,
-			0)
-		? VK_SUCCESS
-		: VK_ERROR_UNKNOWN);
-
-	const VkDeviceCreateInfo device_create_info = {
-		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-		.flags = 0,
-		.queueCreateInfoCount = 1,
-		.pQueueCreateInfos = &queue_create_info,
-		.enabledLayerCount = 0,
-		.ppEnabledLayerNames = nullptr,
-		.enabledExtensionCount = static_cast<uint32_t>(device_extensions.size()),
-		.ppEnabledExtensionNames = &device_extensions[0],
-		.pEnabledFeatures = &gpu_required_features
-	};
-
-	VK_CHECK(vkCreateDevice(
+	uint32_t queue_family_index = 0;
+	Graphics::QueryQueueFamily(
 		gpu_,
-		&device_create_info,
+		VK_QUEUE_GRAPHICS_BIT,
+		true,
+		0,
+		nullptr,
+		&queue_family_index);
+
+	constexpr uint32_t queue_family_count = 1;
+	Graphics::CreateDevice(
+		gpu_,
+		queue_family_count,
+		&queue_family_index,
+		device_extensions,
+		&gpu_required_features,
 		&allocator_,
-		&device_));
+		&device_);
 
 	vkGetDeviceQueue(
 		device_,
-		0,
+		queue_family_index,
 		0,
 		&queue_);
 
-	// Swapchain
+	VkSurfaceFormatKHR surface_format = {};
+	Graphics::QuerySurfaceFormat(
+		gpu_,
+		surface_,
+		{VK_FORMAT_R8G8B8A8_SRGB},
+		&surface_format);
+
 	VkSurfaceCapabilitiesKHR surface_capabilities = {};
-	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+	Graphics::QuerySurfaceCapabilities(
 		gpu_,
 		surface_,
-		&surface_capabilities));
+		&surface_capabilities);
 
-	uint32_t surface_format_count = 0u;
-	VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
-		gpu_,
-		surface_,
-		&surface_format_count,
-		nullptr));
-	std::vector<VkSurfaceFormatKHR> surface_formats(surface_format_count);
-	VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
-		gpu_,
-		surface_,
-		&surface_format_count,
-		&surface_formats[0]));
-
-	const VkSwapchainCreateInfoKHR swapchain_create_info = {
-		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-		.pNext = nullptr,
-		.flags = 0,
-		.surface = surface_,
-		.minImageCount = 3,
-		.imageFormat = VK_FORMAT_B8G8R8A8_SRGB,
-		.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-		.imageExtent = {640, 480},
-		.imageArrayLayers = 1,
-		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-		.queueFamilyIndexCount = 0,
-		.pQueueFamilyIndices = nullptr,
-		.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-		.presentMode = VK_PRESENT_MODE_FIFO_KHR,
-		.clipped = VK_TRUE,
-		.oldSwapchain = swapchain_,
-	};
-
-	VK_CHECK(vkCreateSwapchainKHR(
+	Graphics::CreateSwapchain(
 		device_,
-		&swapchain_create_info,
+		surface_,
+		&surface_format,
+		&surface_capabilities,
+		// At this point is VK_NULL_HANDLE
+		swapchain_,
 		&allocator_,
-		&swapchain_));
+		&swapchain_);
 
-	uint32_t swapchain_image_count = 0;
-	VK_CHECK(vkGetSwapchainImagesKHR(
+	swapchain_images_.resize(surface_capabilities.minImageCount);
+	Graphics::QuerySwapchainImages(
 		device_,
 		swapchain_,
-		&swapchain_image_count,
-		nullptr));
-	swapchain_images_.resize(swapchain_image_count);
-	VK_CHECK(vkGetSwapchainImagesKHR(
-		device_,
-		swapchain_,
-		&swapchain_image_count,
-		&swapchain_images_[0]));
+		&swapchain_images_[0]);
 
-	swapchain_image_views_.resize(swapchain_image_count);
-
-	for (uint32_t i = 0; i < swapchain_image_count; i++)
+	swapchain_image_views_.resize(surface_capabilities.minImageCount);
+	for (uint32_t i = 0; i < surface_capabilities.minImageCount; i++)
 	{
 		Graphics::CreateImageView(
 			device_,
 			swapchain_images_[i],
 			VK_IMAGE_VIEW_TYPE_2D,
-			VK_FORMAT_B8G8R8A8_SRGB,
+			surface_format.format,
 			{
 				VK_COMPONENT_SWIZZLE_IDENTITY,
 				VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -239,69 +194,79 @@ VkResult VkApp::Init()
 			&swapchain_image_views_[i]);
 	}
 
-	const VkCommandPoolCreateInfo command_pool_create_info = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-		.pNext = nullptr,
-		.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-		.queueFamilyIndex = 0,
-	};
+	// Sample image resolver
+	VkSampleCountFlagBits sample_counts = VK_SAMPLE_COUNT_1_BIT;
+	Graphics::QuerySampleCounts(
+		gpu_,
+		&sample_counts);
 
-	VK_CHECK(vkCreateCommandPool(
+	Graphics::CreateImage(
 		device_,
-		&command_pool_create_info,
+		gpu_,
+		VK_IMAGE_TYPE_2D,
+		surface_format.format,
+		{
+			surface_capabilities.currentExtent.width,
+			surface_capabilities.currentExtent.height,
+			1
+		},
+		sample_counts,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		&allocator_,
-		&command_pool_));
+		&framebuffer_sample_image_,
+		&framebuffer_sample_image_memory_);
 
-	const VkCommandBufferAllocateInfo command_buffer_allocate_info = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.pNext = nullptr,
-		.commandPool = command_pool_,
-		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = 1
-	};
-
-	VK_CHECK(vkAllocateCommandBuffers(
+	Graphics::CreateImageView(
 		device_,
-		&command_buffer_allocate_info,
-		&command_buffer_));
+		framebuffer_sample_image_,
+		VK_IMAGE_VIEW_TYPE_2D,
+		surface_format.format,
+		{
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY
+		},
+		&allocator_,
+		&framebuffer_sample_image_view_);
+
+	Graphics::CreateCommandPool(
+		device_,
+		VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+		queue_family_index,
+		&allocator_,
+		&command_pool_);
+
+	Graphics::CreateCommandBuffer(
+		device_,
+		command_pool_,
+		&command_buffer_);
 
 	// Synchronization
 
-	VkSemaphoreCreateInfo image_available_semaphore_info = {
-		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-		.pNext = nullptr,
-		.flags = 0,
-	};
-
-	VK_CHECK(vkCreateSemaphore(
+	Graphics::CreateSemaphore(
 		device_,
-		&image_available_semaphore_info,
 		&allocator_,
-		&image_available_semaphore_));
-	VK_CHECK(vkCreateSemaphore(
-		device_,
-		&image_available_semaphore_info,
-		&allocator_,
-		&render_finished_semaphore_));
+		&image_available_semaphore_);
 
-	VkFenceCreateInfo fence_info = {
-		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-		.pNext = nullptr,
-		.flags = VK_FENCE_CREATE_SIGNALED_BIT,
-	};
-
-	VK_CHECK(vkCreateFence(
+	Graphics::CreateSemaphore(
 		device_,
-		&fence_info,
 		&allocator_,
-		&submit_finished_fence_));
+		&render_finished_semaphore_);
+
+	Graphics::CreateFence(
+		device_,
+		&allocator_,
+		&submit_finished_fence_);
 
 	// Render Pass
 
 	const VkAttachmentDescription color_attachment = {
 		.flags = VK_ATTACHMENT_LOAD_OP_CLEAR,
-		.format = VK_FORMAT_B8G8R8A8_SRGB,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.format = surface_format.format,
+		.samples = sample_counts,
 		.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
 		.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -315,6 +280,23 @@ VkResult VkApp::Init()
 		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 	};
 
+	VkAttachmentDescription color_attachment_resolve = {
+		.flags = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.format = surface_format.format,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+		.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+		.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+	};
+
+	VkAttachmentReference color_attachment_resolve_ref = {
+		.attachment = 1,
+		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+	};
+
 	const VkSubpassDescription subpass = {
 		.flags = 0,
 		.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -322,7 +304,7 @@ VkResult VkApp::Init()
 		.pInputAttachments = nullptr,
 		.colorAttachmentCount = 1,
 		.pColorAttachments = &color_attachment_ref,
-		.pResolveAttachments = nullptr,
+		.pResolveAttachments = &color_attachment_resolve_ref,
 		.pDepthStencilAttachment = nullptr,
 		.preserveAttachmentCount = 0,
 		.pPreserveAttachments = nullptr,
@@ -338,16 +320,18 @@ VkResult VkApp::Init()
 		.dependencyFlags = 0,
 	};
 
-	const VkAttachmentDescription attachments[] = {
+	constexpr uint32_t            attachment_desc_count                   = 2;
+	const VkAttachmentDescription attachment_descs[attachment_desc_count] = {
 		color_attachment,
+		color_attachment_resolve,
 	};
 
 	const VkRenderPassCreateInfo render_pass_create_info = {
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.attachmentCount = 1,
-		.pAttachments = &attachments[0],
+		.attachmentCount = attachment_desc_count,
+		.pAttachments = &attachment_descs[0],
 		.subpassCount = 1,
 		.pSubpasses = &subpass,
 		.dependencyCount = 1,
@@ -360,12 +344,14 @@ VkResult VkApp::Init()
 		&allocator_,
 		&render_pass_));
 
-	framebuffers_.resize(swapchain_image_count);
+	framebuffers_.resize(surface_capabilities.minImageCount);
 
-	for (size_t i = 0; i < swapchain_image_count; i++)
+	for (size_t i = 0; i < surface_capabilities.minImageCount; i++)
 	{
-		const VkImageView attachments_framebuffer[] = {
-			swapchain_image_views_[i],
+		constexpr uint32_t attachments_count              = 2;
+		const VkImageView  attachments[attachments_count] = {
+			framebuffer_sample_image_view_, // Multisample
+			swapchain_image_views_[i], // Multisample resolver to 1 sample.
 		};
 
 		VkFramebufferCreateInfo framebuffer_info = {
@@ -373,10 +359,10 @@ VkResult VkApp::Init()
 			.pNext = nullptr,
 			.flags = 0,
 			.renderPass = render_pass_,
-			.attachmentCount = 1,
-			.pAttachments = &attachments_framebuffer[0],
-			.width = 640,
-			.height = 480,
+			.attachmentCount = attachments_count,
+			.pAttachments = &attachments[0],
+			.width = surface_capabilities.currentExtent.width,
+			.height = surface_capabilities.currentExtent.height,
 			.layers = 1,
 		};
 
@@ -503,7 +489,7 @@ VkResult VkApp::Init()
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+		.rasterizationSamples = sample_counts,
 		.sampleShadingEnable = VK_FALSE,
 		.minSampleShading = 1.0f,
 		.pSampleMask = nullptr,

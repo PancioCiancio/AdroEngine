@@ -122,7 +122,7 @@ void Graphics::CreateDebugMessenger(
 		p_debuge_messenger_ext));
 }
 
-void Graphics::SelectGpu(
+void Graphics::QueryGpu(
 	VkInstance                      instance,
 	VkPhysicalDeviceFeatures        fts_requested,
 	const std::vector<const char*>& extensions_requested,
@@ -290,7 +290,321 @@ void Graphics::SelectGpu(
 	*p_gpu = gpus[selected_gpu_index];
 }
 
-uint32_t Graphics::FindMemoryTypeIdx(
+void Graphics::QuerySampleCounts(
+	VkPhysicalDevice       gpu,
+	VkSampleCountFlagBits* p_sample)
+{
+	VkPhysicalDeviceProperties properties = {};
+	vkGetPhysicalDeviceProperties(gpu, &properties);
+
+	const uint32_t sample_counts =
+		properties.limits.framebufferColorSampleCounts &
+		properties.limits.framebufferDepthSampleCounts &
+		properties.limits.framebufferStencilSampleCounts;
+
+	constexpr uint32_t          sample_bits_list_count                       = 4;
+	const VkSampleCountFlagBits priority_sample_bits[sample_bits_list_count] = {
+		VK_SAMPLE_COUNT_8_BIT,
+		VK_SAMPLE_COUNT_4_BIT,
+		VK_SAMPLE_COUNT_2_BIT,
+		VK_SAMPLE_COUNT_1_BIT
+	};
+
+	bool sample_count_found = false;
+	for (uint32_t i = 0; i < sample_bits_list_count && !sample_count_found; i++)
+	{
+		if (priority_sample_bits[i] & sample_counts)
+		{
+			*p_sample          = priority_sample_bits[i];
+			sample_count_found = true;
+		}
+	}
+}
+
+void Graphics::QueryQueueFamily(
+	VkPhysicalDevice      gpu,
+	const VkQueueFlagBits queue_flag_bits_requested,
+	const bool            must_support_presentation,
+	const uint32_t        family_idx_discarded_count,
+	const uint32_t*       family_idx_discarded,
+	uint32_t*             p_queue_family_idx)
+{
+	uint32_t queue_family_count = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(gpu, &queue_family_count, nullptr);
+
+	std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
+	vkGetPhysicalDeviceQueueFamilyProperties(gpu, &queue_family_count, &queue_families[0]);
+
+	bool is_queue_family_found = false;
+
+	for (uint32_t i = 0; i < queue_family_count && !is_queue_family_found; i++)
+	{
+		bool is_queue_discarded = false;
+
+		for (uint32_t j = 0; j < family_idx_discarded_count && !is_queue_discarded; j++)
+		{
+			is_queue_discarded = family_idx_discarded[j] == i;
+		}
+
+		*p_queue_family_idx = i;
+
+		// Check presentation support if requested, otherwise mark it as true.
+		const bool support_presentation = must_support_presentation
+			                                  ? vkGetPhysicalDeviceWin32PresentationSupportKHR(gpu, i)
+			                                  : true;
+
+		// Check flags, presentation support, unique idx(if requested).
+		is_queue_family_found = !is_queue_discarded &&
+		                        support_presentation &&
+		                        (queue_families[i].queueFlags & queue_flag_bits_requested) ==
+		                        queue_flag_bits_requested;
+	}
+
+	VK_CHECK(is_queue_family_found
+		? VK_SUCCESS
+		: VK_ERROR_INITIALIZATION_FAILED);
+}
+
+void Graphics::CreateDevice(
+	VkPhysicalDevice                gpu,
+	const uint32_t                  queue_family_count,
+	const uint32_t*                 p_queue_families_idx,
+	const std::vector<const char*>& extensions,
+	const VkPhysicalDeviceFeatures* p_features,
+	const VkAllocationCallbacks*    p_allocator,
+	VkDevice*                       p_device)
+{
+	std::vector<VkDeviceQueueCreateInfo> queue_create_infos(queue_family_count);
+
+	for (uint32_t i = 0; i < queue_family_count; i++)
+	{
+		const VkDeviceQueueCreateInfo queue_create_info = {
+			.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+			.flags = 0,
+			.queueFamilyIndex = p_queue_families_idx[i],
+			.queueCount = 1,
+			.pQueuePriorities = nullptr,
+		};
+
+		queue_create_infos[i] = queue_create_info;
+	}
+
+	const VkDeviceCreateInfo device_create_info = {
+		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+		.flags = 0,
+		.queueCreateInfoCount = queue_family_count,
+		.pQueueCreateInfos = &queue_create_infos[0],
+		.enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
+		.ppEnabledExtensionNames = &extensions[0],
+		.pEnabledFeatures = p_features
+	};
+
+	VK_CHECK(vkCreateDevice(
+		gpu,
+		&device_create_info,
+		p_allocator,
+		p_device));
+}
+
+void Graphics::QuerySurfaceFormat(
+	VkPhysicalDevice             gpu,
+	VkSurfaceKHR                 surface,
+	const std::vector<VkFormat>& formats_required,
+	VkSurfaceFormatKHR*          p_format)
+{
+	uint32_t surface_format_count = 0;
+	VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
+		gpu,
+		surface,
+		&surface_format_count,
+		nullptr));
+
+	VK_CHECK((surface_format_count > 0) ? VK_SUCCESS : VK_ERROR_INITIALIZATION_FAILED);
+
+	std::vector<VkSurfaceFormatKHR> formats_supported(surface_format_count);
+	VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
+		gpu,
+		surface,
+		&surface_format_count,
+		&formats_supported[0]));
+
+	bool find_required_format = false;
+
+	for (uint32_t i = 0; i < surface_format_count && !find_required_format; i++)
+	{
+		for (uint32_t j = 0; j < formats_required.size() && !find_required_format; j++)
+		{
+			find_required_format = formats_supported[i].format == formats_required[j];
+
+			if (find_required_format)
+			{
+				*p_format = formats_supported[i];
+			}
+		}
+	}
+
+	// If no required format is provided or found, assign the first one supported.
+	if (!find_required_format)
+	{
+		*p_format = formats_supported[0];
+	}
+}
+
+void Graphics::QuerySurfaceCapabilities(
+	VkPhysicalDevice          gpu,
+	VkSurfaceKHR              surface,
+	VkSurfaceCapabilitiesKHR* p_surface_capabilities)
+{
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, surface, p_surface_capabilities);
+
+	constexpr uint32_t desired_image_count = 3;
+	p_surface_capabilities->minImageCount  = desired_image_count;
+
+	if (p_surface_capabilities->maxImageCount > 0 &&
+	    desired_image_count > p_surface_capabilities->maxImageCount)
+	{
+		p_surface_capabilities->minImageCount = p_surface_capabilities->maxImageCount;
+	}
+
+	if (p_surface_capabilities->supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+	{
+		p_surface_capabilities->currentTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+	}
+}
+
+void Graphics::CreateSwapchain(
+	VkDevice                  device,
+	VkSurfaceKHR              surface,
+	VkSurfaceFormatKHR*       p_format,
+	VkSurfaceCapabilitiesKHR* p_capabilities,
+	VkSwapchainKHR            old_swapchain,
+	VkAllocationCallbacks*    p_allocator,
+	VkSwapchainKHR*           p_swapchain)
+{
+	const VkSwapchainCreateInfoKHR swapchain_create_info = {
+		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+		.pNext = nullptr,
+		.flags = 0,
+		.surface = surface,
+		.minImageCount = p_capabilities->minImageCount,
+		.imageFormat = p_format->format,
+		.imageColorSpace = p_format->colorSpace,
+		.imageExtent = p_capabilities->currentExtent,
+		.imageArrayLayers = 1,
+		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = 0,
+		.pQueueFamilyIndices = nullptr,
+		.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+		.presentMode = VK_PRESENT_MODE_FIFO_KHR,
+		.clipped = VK_TRUE,
+		.oldSwapchain = old_swapchain,
+	};
+
+	VK_CHECK(vkCreateSwapchainKHR(
+		device,
+		&swapchain_create_info,
+		p_allocator,
+		p_swapchain));
+}
+
+void Graphics::QuerySwapchainImages(
+	VkDevice       device,
+	VkSwapchainKHR swapchain,
+	VkImage*       p_swapchain_images)
+{
+	uint32_t swapchain_image_count = 0;
+	VK_CHECK(vkGetSwapchainImagesKHR(
+		device,
+		swapchain,
+		&swapchain_image_count,
+		nullptr));
+
+	VK_CHECK(vkGetSwapchainImagesKHR(
+		device,
+		swapchain,
+		&swapchain_image_count,
+		p_swapchain_images));
+}
+
+void Graphics::CreateCommandPool(
+	VkDevice                 device,
+	VkCommandPoolCreateFlags flags,
+	uint32_t                 queue_family_idx,
+	VkAllocationCallbacks*   p_allocator,
+	VkCommandPool*           p_command_pool)
+{
+	const VkCommandPoolCreateInfo command_pool_create_info = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = flags,
+		.queueFamilyIndex = 0,
+	};
+
+	VK_CHECK(vkCreateCommandPool(
+		device,
+		&command_pool_create_info,
+		p_allocator,
+		p_command_pool));
+}
+
+void Graphics::CreateCommandBuffer(
+	VkDevice         device,
+	VkCommandPool    command_pool,
+	VkCommandBuffer* p_command_buffer)
+{
+	const VkCommandBufferAllocateInfo command_buffer_allocate_info = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.pNext = nullptr,
+		.commandPool = command_pool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1
+	};
+
+	VK_CHECK(vkAllocateCommandBuffers(
+		device,
+		&command_buffer_allocate_info,
+		p_command_buffer));
+}
+
+void Graphics::CreateSemaphore(
+	VkDevice               device,
+	VkAllocationCallbacks* p_allocator,
+	VkSemaphore*           p_semaphore)
+{
+	VkSemaphoreCreateInfo image_available_semaphore_info = {
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+	};
+
+	VK_CHECK(vkCreateSemaphore(
+		device,
+		&image_available_semaphore_info,
+		p_allocator,
+		p_semaphore));
+}
+
+void Graphics::CreateFence(
+	VkDevice               device,
+	VkAllocationCallbacks* p_allocator,
+	VkFence*               p_fence)
+{
+	VkFenceCreateInfo fence_info = {
+		.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = VK_FENCE_CREATE_SIGNALED_BIT,
+	};
+
+	VK_CHECK(vkCreateFence(
+		device,
+		&fence_info,
+		p_allocator,
+		p_fence));
+}
+
+uint32_t Graphics::QueryMemoryTypeIdx(
 	uint32_t                                type_filter,
 	VkMemoryPropertyFlags                   memory_property_flags,
 	const VkPhysicalDeviceMemoryProperties& physical_device_memory_properties)
@@ -369,7 +683,7 @@ void Graphics::CreateBuffer(
 		physical_device,
 		&memory_properties);
 
-	const uint32_t memory_type_index = FindMemoryTypeIdx(
+	const uint32_t memory_type_index = QueryMemoryTypeIdx(
 		mem_requirements.memoryTypeBits,
 		memory_property_flag_bits,
 		memory_properties);
@@ -455,7 +769,7 @@ void Graphics::CreateImage(
 	VkPhysicalDeviceMemoryProperties memory_properties = {};
 	vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
 
-	const uint32_t mem_type_idx = FindMemoryTypeIdx(
+	const uint32_t mem_type_idx = QueryMemoryTypeIdx(
 		mem_requirements.memoryTypeBits,
 		memory_property_flag_bits,
 		memory_properties);
