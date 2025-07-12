@@ -103,6 +103,7 @@ VkDebugUtilsMessengerCreateInfoEXT Graphics::GetDebugMessengerCreateInfo()
 		                   VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
 		.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
 		               VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+		               VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT |
 		               VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
 		.pfnUserCallback = debugCallback,
 		.pUserData = nullptr,
@@ -647,15 +648,14 @@ void Graphics::CreateShaderModule(
 }
 
 void Graphics::CreateBuffer(
-	VkDevice                 device,
-	VkPhysicalDevice         physical_device,
-	VkDeviceSize             size,
-	VkBufferUsageFlags       usage_flags,
-	VkFormat                 format,
-	VkMemoryPropertyFlagBits memory_property_flag_bits,
-	VkAllocationCallbacks*   p_allocator,
-	VkBuffer*                p_buffer,
-	VkDeviceMemory*          p_memory)
+	VkDevice               device,
+	VkPhysicalDevice       physical_device,
+	VkDeviceSize           size,
+	VkBufferUsageFlags     usage_flags,
+	VkMemoryPropertyFlags  memory_property_flag_bits,
+	VkAllocationCallbacks* p_allocator,
+	VkBuffer*              p_buffer,
+	VkDeviceMemory*        p_memory)
 {
 	const VkBufferCreateInfo buffer_create_info = {
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,

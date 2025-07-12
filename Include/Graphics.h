@@ -7,6 +7,8 @@
 
 #include <Volk/volk.h>
 #include <vector>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 class Graphics
 {
@@ -19,6 +21,28 @@ public:
 		VkResult _vk_result = (result);     \
 		assert(_vk_result == VK_SUCCESS);	\
 	} while (0)
+
+	/// Mostly used to group swapchain images, views and framebuffers
+	/// @todo Presentation should be separated from base Graphics
+	struct PerFrame
+	{
+		std::vector<VkImage>       images;
+		std::vector<VkImageView>   image_views;
+		std::vector<VkFramebuffer> framebuffers;
+	};
+
+	/// Uniform buffer data aligned
+	struct PerFrameData
+	{
+		alignas(16) glm::mat4 view;
+		alignas(16) glm::mat4 projection;
+	};
+
+	struct Vertex
+	{
+		glm::vec2 pos;
+		glm::vec3 color;
+	};
 
 	static void CreateInstance(
 		const std::vector<const char*>& layers_requested,
@@ -124,15 +148,14 @@ public:
 		VkShaderModule*          p_shader_module);
 
 	static void CreateBuffer(
-		VkDevice                 device,
-		VkPhysicalDevice         physical_device,
-		VkDeviceSize             size,
-		VkBufferUsageFlags       usage_flags,
-		VkFormat                 format,
-		VkMemoryPropertyFlagBits memory_property_flag_bits,
-		VkAllocationCallbacks*   p_allocator,
-		VkBuffer*                p_buffer,
-		VkDeviceMemory*          p_memory);
+		VkDevice               device,
+		VkPhysicalDevice       physical_device,
+		VkDeviceSize           size,
+		VkBufferUsageFlags     usage_flags,
+		VkMemoryPropertyFlags  memory_property_flag_bits,
+		VkAllocationCallbacks* p_allocator,
+		VkBuffer*              p_buffer,
+		VkDeviceMemory*        p_memory);
 
 	/// @warning	Provided buffer must be valid.
 	static void CreateBufferView(

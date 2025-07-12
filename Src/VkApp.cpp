@@ -76,7 +76,7 @@ VkResult VkApp::Init()
 		SDL_WINDOWPOS_UNDEFINED,
 		640,
 		480,
-		SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+		SDL_WINDOW_VULKAN);
 
 	VK_CHECK(volkInitialize());
 
@@ -170,18 +170,41 @@ VkResult VkApp::Init()
 		&allocator_,
 		&swapchain_);
 
-	swapchain_images_.resize(surface_capabilities_.minImageCount);
+	// Resize per-frame presentation
+	presentation_frames_.images.resize(surface_capabilities_.minImageCount);
+	presentation_frames_.image_views.resize(surface_capabilities_.minImageCount);
+	presentation_frames_.framebuffers.resize(surface_capabilities_.minImageCount);
+
+	// Resize per-frame data (Uniform Buffer)
+	per_frame_data_buffers_.resize(surface_capabilities_.minImageCount);
+	per_frame_data_mapped_.resize(surface_capabilities_.minImageCount);
+	per_frame_data_memories_.resize(surface_capabilities_.minImageCount);
+
+	for (uint32_t i = 0; i < surface_capabilities_.minImageCount; i++)
+	{
+		constexpr VkDeviceSize buffer_size = sizeof(Graphics::PerFrameData);
+
+		Graphics::CreateBuffer(
+			device_,
+			gpu_,
+			buffer_size,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			&allocator_,
+			&per_frame_data_buffers_[i],
+			&per_frame_data_memories_[i]);
+	}
+
 	Graphics::QuerySwapchainImages(
 		device_,
 		swapchain_,
-		&swapchain_images_[0]);
+		&presentation_frames_.images[0]);
 
-	swapchain_image_views_.resize(surface_capabilities_.minImageCount);
 	for (uint32_t i = 0; i < surface_capabilities_.minImageCount; i++)
 	{
 		Graphics::CreateImageView(
 			device_,
-			swapchain_images_[i],
+			presentation_frames_.images[i],
 			VK_IMAGE_VIEW_TYPE_2D,
 			surface_format.format,
 			{
@@ -190,7 +213,7 @@ VkResult VkApp::Init()
 				VK_COMPONENT_SWIZZLE_IDENTITY,
 				VK_COMPONENT_SWIZZLE_IDENTITY},
 			&allocator_,
-			&swapchain_image_views_[i]);
+			&presentation_frames_.image_views[i]);
 	}
 
 	// Sample image resolver
@@ -343,14 +366,12 @@ VkResult VkApp::Init()
 		&allocator_,
 		&render_pass_));
 
-	framebuffers_.resize(surface_capabilities_.minImageCount);
-
 	for (size_t i = 0; i < surface_capabilities_.minImageCount; i++)
 	{
 		constexpr uint32_t attachments_count              = 2;
 		const VkImageView  attachments[attachments_count] = {
 			framebuffer_sample_image_view_, // Multisample
-			swapchain_image_views_[i], // Multisample resolver to 1 sample.
+			presentation_frames_.image_views[i], // Multisample resolver to 1 sample.
 		};
 
 		VkFramebufferCreateInfo framebuffer_info = {
@@ -369,7 +390,7 @@ VkResult VkApp::Init()
 			device_,
 			&framebuffer_info,
 			&allocator_,
-			&framebuffers_[i]));
+			&presentation_frames_.framebuffers[i]));
 	}
 
 	// Vulkan Pipeline
@@ -424,6 +445,27 @@ VkResult VkApp::Init()
 		.dynamicStateCount = static_cast<uint32_t>(dynamic_states.size()),
 		.pDynamicStates = dynamic_states.data(),
 	};
+
+	// VkVertexInputBindingDescription binding_description = {
+	// 	.binding = 0,
+	// 	.stride = sizeof(Graphics::Vertex),
+	// 	.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+	// };
+	//
+	// VkVertexInputAttributeDescription attribute_description[2] = {
+	// 	{
+	// 		.binding = 0,
+	// 		.location = 0,
+	// 		.format = VK_FORMAT_R32G32_SFLOAT,
+	// 		.offset = offsetof(Graphics::Vertex, pos)
+	// 	},
+	// 	{
+	// 		.binding = 0,
+	// 		.location = 1,
+	// 		.format = VK_FORMAT_R32G32B32_SFLOAT,
+	// 		.offset = offsetof(Graphics::Vertex, color)
+	// 	}
+	// };
 
 	constexpr VkPipelineVertexInputStateCreateInfo vertex_input_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -520,12 +562,32 @@ VkResult VkApp::Init()
 		.blendConstants = {0.0f, 0.0f, 0.0f, 0.0f}
 	};
 
-	constexpr VkPipelineLayoutCreateInfo pipeline_layout_info = {
+	const VkDescriptorSetLayoutBinding u_buffer_set_binding = {
+		.binding = 0,
+		.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		.descriptorCount = 1,
+		.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+		.pImmutableSamplers = nullptr,
+	};
+
+	const VkDescriptorSetLayoutCreateInfo layout_info = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+		.bindingCount = 1,
+		.pBindings = &u_buffer_set_binding
+	};
+
+	VK_CHECK(vkCreateDescriptorSetLayout(
+		device_,
+		&layout_info,
+		&allocator_,
+		&descriptor_set_layout_));
+
+	const VkPipelineLayoutCreateInfo pipeline_layout_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.setLayoutCount = 0,
-		.pSetLayouts = nullptr,
+		.setLayoutCount = 1,
+		.pSetLayouts = &descriptor_set_layout_,
 		.pushConstantRangeCount = 0,
 		.pPushConstantRanges = nullptr,
 	};
@@ -566,6 +628,68 @@ VkResult VkApp::Init()
 		&allocator_,
 		&pipeline_));
 
+	const VkDescriptorPoolSize pool_size = {
+		.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		.descriptorCount = surface_capabilities_.minImageCount
+	};
+
+	VkDescriptorPoolCreateInfo pool_create_info = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+		.maxSets = surface_capabilities_.minImageCount,
+		.poolSizeCount = 1,
+		.pPoolSizes = &pool_size,
+	};
+
+	VK_CHECK(vkCreateDescriptorPool(
+		device_,
+		&pool_create_info,
+		&allocator_,
+		&descriptor_pool_));
+
+	std::vector<VkDescriptorSetLayout> layouts(
+		surface_capabilities_.minImageCount,
+		descriptor_set_layout_);
+
+	VkDescriptorSetAllocateInfo set_allocate_info = {
+		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+		.descriptorPool = descriptor_pool_,
+		.descriptorSetCount = surface_capabilities_.minImageCount,
+		.pSetLayouts = &layouts[0],
+	};
+
+	descriptor_sets_.resize(surface_capabilities_.minImageCount);
+
+	VK_CHECK(vkAllocateDescriptorSets(
+		device_,
+		&set_allocate_info,
+		&descriptor_sets_[0]));
+
+	for (size_t i = 0; i < surface_capabilities_.minImageCount; i++)
+	{
+		VkDescriptorBufferInfo buffer_info = {
+			.buffer = per_frame_data_buffers_[i],
+			.offset = 0,
+			.range = sizeof(Graphics::PerFrameData),
+		};
+
+		VkWriteDescriptorSet descriptor_set = {
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = descriptor_sets_[i],
+			.dstBinding = 0,
+			.dstArrayElement = 0,
+			.descriptorCount = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.pBufferInfo = &buffer_info
+		};
+
+		vkUpdateDescriptorSets(
+			device_,
+			1,
+			&descriptor_set,
+			0,
+			nullptr);
+	}
+
 	vkDestroyShaderModule(device_, shader_modules[0], &allocator_);
 	vkDestroyShaderModule(device_, shader_modules[1], &allocator_);
 
@@ -595,216 +719,6 @@ VkResult VkApp::Update()
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
 		{
-			if (event.type == SDL_WINDOWEVENT)
-			{
-				switch (event.window.event)
-				{
-				case SDL_WINDOWEVENT_SIZE_CHANGED:
-				{
-					vkDeviceWaitIdle(device_);
-
-					VkSwapchainKHR old_swapchain = swapchain_;
-
-					VkSurfaceFormatKHR surface_format = {};
-					Graphics::QuerySurfaceFormat(
-						gpu_,
-						surface_,
-						{VK_FORMAT_R8G8B8A8_SRGB},
-						&surface_format);
-
-					VkSurfaceCapabilitiesKHR old_surface_capabilities = surface_capabilities_;
-					Graphics::QuerySurfaceCapabilities(
-						gpu_,
-						surface_,
-						&surface_capabilities_);
-
-					Graphics::CreateSwapchain(
-						device_,
-						surface_,
-						&surface_format,
-						&surface_capabilities_,
-						old_swapchain,
-						&allocator_,
-						&swapchain_);
-
-					vkDestroyImageView(
-						device_,
-						framebuffer_sample_image_view_,
-						&allocator_);
-
-					vkDestroyImage(
-						device_,
-						framebuffer_sample_image_,
-						&allocator_);
-
-					for (uint32_t i = 0; i < old_surface_capabilities.minImageCount; i++)
-					{
-						vkDestroyImageView(
-							device_,
-							swapchain_image_views_[i],
-							&allocator_);
-					}
-
-					for (uint32_t i = 0; i < old_surface_capabilities.minImageCount; i++)
-					{
-						vkDestroyFramebuffer(
-							device_,
-							framebuffers_[i],
-							&allocator_);
-					}
-
-					vkDestroySwapchainKHR(
-						device_,
-						old_swapchain,
-						&allocator_);
-
-					vkDestroyCommandPool(
-						device_,
-						command_pool_,
-						&allocator_);
-
-					vkDestroySemaphore(
-						device_,
-						image_available_semaphore_,
-						&allocator_);
-
-					vkDestroySemaphore(
-						device_,
-						render_finished_semaphore_,
-						&allocator_);
-
-					vkDestroyFence(
-						device_,
-						submit_finished_fence_,
-						&allocator_);
-
-					uint32_t queue_family_index = 0;
-					Graphics::QueryQueueFamily(
-						gpu_,
-						VK_QUEUE_GRAPHICS_BIT,
-						true,
-						0,
-						nullptr,
-						&queue_family_index);
-
-					Graphics::CreateCommandPool(
-						device_,
-						VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-						queue_family_index,
-						&allocator_,
-						&command_pool_);
-
-					Graphics::CreateCommandBuffer(
-						device_,
-						command_pool_,
-						&command_buffer_);
-
-					// Synchronization
-
-					Graphics::CreateSemaphore(
-						device_,
-						&allocator_,
-						&image_available_semaphore_);
-
-					Graphics::CreateSemaphore(
-						device_,
-						&allocator_,
-						&render_finished_semaphore_);
-
-					Graphics::CreateFence(
-						device_,
-						&allocator_,
-						&submit_finished_fence_);
-
-					swapchain_images_.resize(surface_capabilities_.minImageCount);
-					Graphics::QuerySwapchainImages(
-						device_,
-						swapchain_,
-						&swapchain_images_[0]);
-
-					VkSampleCountFlagBits sample_counts = VK_SAMPLE_COUNT_1_BIT;
-					Graphics::QuerySampleCounts(
-						gpu_,
-						&sample_counts);
-
-					Graphics::CreateImage(
-						device_,
-						gpu_,
-						VK_IMAGE_TYPE_2D,
-						surface_format.format,
-						{
-							surface_capabilities_.currentExtent.width,
-							surface_capabilities_.currentExtent.height,
-							1
-						},
-						sample_counts,
-						VK_IMAGE_TILING_OPTIMAL,
-						VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-						VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-						&allocator_,
-						&framebuffer_sample_image_,
-						&framebuffer_sample_image_memory_);
-
-					Graphics::CreateImageView(
-						device_,
-						framebuffer_sample_image_,
-						VK_IMAGE_VIEW_TYPE_2D,
-						surface_format.format,
-						{
-							VK_COMPONENT_SWIZZLE_IDENTITY,
-							VK_COMPONENT_SWIZZLE_IDENTITY,
-							VK_COMPONENT_SWIZZLE_IDENTITY,
-							VK_COMPONENT_SWIZZLE_IDENTITY
-						},
-						&allocator_,
-						&framebuffer_sample_image_view_);
-
-					for (uint32_t i = 0; i < surface_capabilities_.minImageCount; i++)
-					{
-						Graphics::CreateImageView(
-							device_,
-							swapchain_images_[i],
-							VK_IMAGE_VIEW_TYPE_2D,
-							surface_format.format,
-							{
-								VK_COMPONENT_SWIZZLE_IDENTITY,
-								VK_COMPONENT_SWIZZLE_IDENTITY,
-								VK_COMPONENT_SWIZZLE_IDENTITY,
-								VK_COMPONENT_SWIZZLE_IDENTITY},
-							&allocator_,
-							&swapchain_image_views_[i]);
-
-						constexpr uint32_t attachments_count              = 2;
-						const VkImageView  attachments[attachments_count] = {
-							framebuffer_sample_image_view_, // Multisample
-							swapchain_image_views_[i], // Multisample resolver to 1 sample.
-						};
-
-						VkFramebufferCreateInfo framebuffer_info = {
-							.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-							.pNext = nullptr,
-							.flags = 0,
-							.renderPass = render_pass_,
-							.attachmentCount = attachments_count,
-							.pAttachments = &attachments[0],
-							.width = surface_capabilities_.currentExtent.width,
-							.height = surface_capabilities_.currentExtent.height,
-							.layers = 1,
-						};
-
-						vkCreateFramebuffer(
-							device_,
-							&framebuffer_info,
-							&allocator_,
-							&framebuffers_[i]);
-					}
-					break;
-				}
-				default:
-					break;
-				}
-			}
-
 			switch (event.type)
 			{
 			case SDL_QUIT:
@@ -837,6 +751,36 @@ VkResult VkApp::Update()
 			VK_NULL_HANDLE,
 			&next_image));
 
+		// Update uniform buffer
+		Graphics::PerFrameData u_buffer = {
+			glm::lookAt(
+				glm::vec3(0.0f, 0.0f, 2.0f),
+				glm::vec3(0.0f, 0.0f, 0.0f),
+				glm::vec3(0.0f, 1.0f, 0.0f)),
+			glm::perspective(
+				glm::radians(45.0f),
+				static_cast<float>(surface_capabilities_.currentExtent.width) /
+				static_cast<float>(surface_capabilities_.currentExtent.height),
+				0.1f,
+				10.0f),
+		};
+
+		VK_CHECK(vkMapMemory(
+			device_,
+			per_frame_data_memories_[next_image],
+			0,
+			sizeof(u_buffer),
+			0,
+			&per_frame_data_mapped_[next_image]));
+
+		constexpr size_t u_buffer_size = sizeof(Graphics::PerFrameData);
+
+		memcpy(per_frame_data_mapped_[next_image], &u_buffer, u_buffer_size);
+
+		vkUnmapMemory(
+			device_,
+			per_frame_data_memories_[next_image]);
+
 		const VkCommandBufferBeginInfo begin_info = {
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 			.pNext = nullptr,
@@ -847,9 +791,20 @@ VkResult VkApp::Update()
 		VK_CHECK(vkResetCommandBuffer(
 			command_buffer_,
 			0));
+
 		VK_CHECK(vkBeginCommandBuffer(
 			command_buffer_,
 			&begin_info));
+
+		vkCmdBindDescriptorSets(
+			command_buffer_,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			pipeline_layout_,
+			0,
+			1,
+			&descriptor_sets_[next_image],
+			0,
+			nullptr);
 
 		constexpr VkClearValue clear_value = {
 			.color = {
@@ -862,7 +817,7 @@ VkResult VkApp::Update()
 			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 			.pNext = nullptr,
 			.renderPass = render_pass_,
-			.framebuffer = framebuffers_[next_image],
+			.framebuffer = presentation_frames_.framebuffers[next_image],
 			.renderArea = {
 				.offset = {0, 0},
 				.extent = surface_capabilities_.currentExtent,
@@ -948,14 +903,15 @@ VkResult VkApp::Update()
 		VkResult               result       = {};
 		const VkPresentInfoKHR present_info = {
 			.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-			.waitSemaphoreCount = 0,
-			.pWaitSemaphores = nullptr,
+			.waitSemaphoreCount = 1,
+			.pWaitSemaphores = &image_available_semaphore_,
 			.swapchainCount = 1,
 			.pSwapchains = &swapchain_,
 			.pImageIndices = &next_image,
 			.pResults = &result,
 		};
 
+		// @todo: cannot present the image if the window is minimized.
 		VK_CHECK(vkQueuePresentKHR(queue_, &present_info));
 
 		// --- Your game update & render logic here ---

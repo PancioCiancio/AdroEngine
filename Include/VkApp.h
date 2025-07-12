@@ -9,6 +9,8 @@
 #include <SDL2/SDL.h>
 #include <vector>
 
+#include "Graphics.h"
+
 class Allocator
 {
 public:
@@ -90,16 +92,22 @@ private:
 	VkPipelineLayout              pipeline_layout_ = {};
 	VkPipeline                    pipeline_        = {};
 
-	SDL_Window*                window_                    = {};
-	VkSurfaceKHR               surface_                   = {};
-	VkSwapchainKHR             swapchain_                 = {};
-	std::vector<VkImage>       swapchain_images_          = {};
-	std::vector<VkImageView>   swapchain_image_views_     = {};
-	VkSemaphore                image_available_semaphore_ = {};
-	VkSemaphore                render_finished_semaphore_ = {};
-	VkFence                    submit_finished_fence_     = {};
-	VkRenderPass               render_pass_               = {};
-	std::vector<VkFramebuffer> framebuffers_              = {};
+	SDL_Window*    window_                    = {};
+	VkSurfaceKHR   surface_                   = {};
+	VkSwapchainKHR swapchain_                 = {};
+	VkSemaphore    image_available_semaphore_ = {};
+	VkSemaphore    render_finished_semaphore_ = {};
+	VkFence        submit_finished_fence_     = {};
+	VkRenderPass   render_pass_               = {};
+
+	Graphics::PerFrame presentation_frames_ = {};
+
+	std::vector<VkBuffer>        per_frame_data_buffers_  = {};
+	std::vector<VkDeviceMemory>  per_frame_data_memories_ = {};
+	std::vector<void*>           per_frame_data_mapped_   = {};
+	VkDescriptorSetLayout        descriptor_set_layout_   = {};
+	VkDescriptorPool             descriptor_pool_         = {};
+	std::vector<VkDescriptorSet> descriptor_sets_         = {};
 
 	VkImage        framebuffer_sample_image_        = {};
 	VkImageView    framebuffer_sample_image_view_   = {};
