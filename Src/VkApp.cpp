@@ -289,7 +289,7 @@ VkResult VkApp::Init()
 		.flags = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.format = surface_format.format,
 		.samples = sample_counts,
-		.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
 		.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 		.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -707,6 +707,8 @@ constexpr double targetFrameTime = 1000.0 / targetFPS; // in milliseconds
 
 VkResult VkApp::Update()
 {
+	const float app_start_time = SDL_GetPerformanceCounter();
+
 	bool stillRunning = true;
 	while (stillRunning)
 	{
@@ -737,6 +739,7 @@ VkResult VkApp::Update()
 			&submit_finished_fence_,
 			VK_TRUE,
 			UINT64_MAX);
+
 		vkResetFences(
 			device_,
 			1,
@@ -752,9 +755,12 @@ VkResult VkApp::Update()
 			&next_image));
 
 		// Update uniform buffer
+		const float app_current_time = SDL_GetPerformanceCounter() - app_start_time;
+		const float camera_anim_time = glm::sin(app_current_time);
+
 		Graphics::PerFrameData u_buffer = {
 			glm::lookAt(
-				glm::vec3(0.0f, 0.0f, 2.0f),
+				glm::vec3(camera_anim_time * 10.0f, 0.0f, 2.0f),
 				glm::vec3(0.0f, 0.0f, 0.0f),
 				glm::vec3(0.0f, 1.0f, 0.0f)),
 			glm::perspective(
@@ -904,7 +910,7 @@ VkResult VkApp::Update()
 		const VkPresentInfoKHR present_info = {
 			.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 			.waitSemaphoreCount = 1,
-			.pWaitSemaphores = &image_available_semaphore_,
+			.pWaitSemaphores = &render_finished_semaphore_,
 			.swapchainCount = 1,
 			.pSwapchains = &swapchain_,
 			.pImageIndices = &next_image,
