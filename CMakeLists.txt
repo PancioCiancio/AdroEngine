@@ -18,9 +18,9 @@ add_executable(Engine main.cpp
         Src/Graphics.cpp
 )
 
-target_include_directories(Engine PRIVATE Include)
-target_include_directories(Engine PRIVATE "$ENV{VULKAN_SDK}/Include")
-target_link_libraries(Engine PRIVATE "$ENV{VULKAN_SDK}/Lib/SDL2.lib")
+target_include_directories(Engine PUBLIC Include)
+target_include_directories(Engine PUBLIC "$ENV{VULKAN_SDK}/Include")
+target_link_libraries(Engine PUBLIC "$ENV{VULKAN_SDK}/Lib/SDL2.lib")
 
 if (WIN32)
     set(VK_USE_PLATFORM "VK_USE_PLATFORM_WIN32_KHR")    # Must be defined before including vulkan.h

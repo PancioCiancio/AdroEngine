@@ -114,6 +114,9 @@ private:
 	VkDeviceMemory framebuffer_sample_image_memory_ = {};
 
 	VkSurfaceCapabilitiesKHR surface_capabilities_ = {};
+
+	VkBuffer       triangle_buffer_        = {};
+	VkDeviceMemory triangle_buffer_memory_ = {};
 };
 
 #endif //VKAPP_H

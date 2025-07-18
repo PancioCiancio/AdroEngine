@@ -7,6 +7,9 @@
 #include "FileSystem.h"
 #include "Graphics.h"
 
+#define VOLK_IMPLEMENTATION
+#include <volk/volk.h>
+
 #include <cassert>
 #include <sstream>
 #include <SDL2/SDL_vulkan.h>
@@ -283,6 +286,42 @@ VkResult VkApp::Init()
 		&allocator_,
 		&submit_finished_fence_);
 
+	const Graphics::Vertex vertices[] = {
+		{{0.0f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},
+		{{0.5f, 0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
+		{{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}}
+	};
+
+	constexpr size_t triangle_vertex_buffer_size = sizeof(Graphics::Vertex) * 3;
+
+	Graphics::CreateBuffer(
+		device_,
+		gpu_,
+		triangle_vertex_buffer_size,
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+		&allocator_,
+		&triangle_buffer_,
+		&triangle_buffer_memory_);
+
+	void* triangle_data = nullptr;
+	VK_CHECK(vkMapMemory(
+		device_,
+		triangle_buffer_memory_,
+		0,
+		triangle_vertex_buffer_size,
+		0,
+		&triangle_data));
+
+	memcpy(
+		triangle_data,
+		&vertices[0],
+		triangle_vertex_buffer_size);
+
+	vkUnmapMemory(
+		device_,
+		triangle_buffer_memory_);
+
 	// Render Pass
 
 	const VkAttachmentDescription color_attachment = {
@@ -446,35 +485,35 @@ VkResult VkApp::Init()
 		.pDynamicStates = dynamic_states.data(),
 	};
 
-	// VkVertexInputBindingDescription binding_description = {
-	// 	.binding = 0,
-	// 	.stride = sizeof(Graphics::Vertex),
-	// 	.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-	// };
-	//
-	// VkVertexInputAttributeDescription attribute_description[2] = {
-	// 	{
-	// 		.binding = 0,
-	// 		.location = 0,
-	// 		.format = VK_FORMAT_R32G32_SFLOAT,
-	// 		.offset = offsetof(Graphics::Vertex, pos)
-	// 	},
-	// 	{
-	// 		.binding = 0,
-	// 		.location = 1,
-	// 		.format = VK_FORMAT_R32G32B32_SFLOAT,
-	// 		.offset = offsetof(Graphics::Vertex, color)
-	// 	}
-	// };
+	const VkVertexInputBindingDescription binding_description = {
+		.binding = 0,
+		.stride = sizeof(Graphics::Vertex),
+		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+	};
 
-	constexpr VkPipelineVertexInputStateCreateInfo vertex_input_info = {
+	const VkVertexInputAttributeDescription attribute_description[2] = {
+		{
+			.location = 0,
+			.binding = 0,
+			.format = VK_FORMAT_R32G32B32_SFLOAT,
+			.offset = offsetof(Graphics::Vertex, pos)
+		},
+		{
+			.location = 1,
+			.binding = 0,
+			.format = VK_FORMAT_R32G32B32_SFLOAT,
+			.offset = offsetof(Graphics::Vertex, color)
+		}
+	};
+
+	const VkPipelineVertexInputStateCreateInfo vertex_input_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.vertexBindingDescriptionCount = 0,
-		.pVertexBindingDescriptions = nullptr,
-		.vertexAttributeDescriptionCount = 0,
-		.pVertexAttributeDescriptions = nullptr
+		.vertexBindingDescriptionCount = 1,
+		.pVertexBindingDescriptions = &binding_description,
+		.vertexAttributeDescriptionCount = 2,
+		.pVertexAttributeDescriptions = &attribute_description[0],
 	};
 
 	constexpr VkPipelineInputAssemblyStateCreateInfo input_assembly_info = {
@@ -707,8 +746,6 @@ constexpr double targetFrameTime = 1000.0 / targetFPS; // in milliseconds
 
 VkResult VkApp::Update()
 {
-	const float app_start_time = SDL_GetPerformanceCounter();
-
 	bool stillRunning = true;
 	while (stillRunning)
 	{
@@ -754,15 +791,12 @@ VkResult VkApp::Update()
 			VK_NULL_HANDLE,
 			&next_image));
 
-		// Update uniform buffer
-		const float app_current_time = SDL_GetPerformanceCounter() - app_start_time;
-		const float camera_anim_time = glm::sin(app_current_time);
-
 		Graphics::PerFrameData u_buffer = {
 			glm::lookAt(
-				glm::vec3(camera_anim_time * 10.0f, 0.0f, 2.0f),
+				glm::vec3(0.0f, 0.0f, 2.0f),
 				glm::vec3(0.0f, 0.0f, 0.0f),
 				glm::vec3(0.0f, 1.0f, 0.0f)),
+
 			glm::perspective(
 				glm::radians(45.0f),
 				static_cast<float>(surface_capabilities_.currentExtent.width) /
@@ -867,6 +901,16 @@ VkResult VkApp::Update()
 			0,
 			1,
 			&scissor);
+
+		const VkDeviceSize offsets[] = {
+			0};
+
+		vkCmdBindVertexBuffers(
+			command_buffer_,
+			0,
+			1,
+			&triangle_buffer_,
+			&offsets[0]);
 
 		vkCmdDraw(
 			command_buffer_,

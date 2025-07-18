@@ -1,22 +1,50 @@
 # ADRO GFX (notes)
 
-## Vulkan Handles List Ordered
+## Plan
 
-- VkInstance
-- VkSurfaceKHR
-- VkPhysicalDevice
-- VkDevice
-- VkSwapchainKHR
-- VkImage
-- VkImageView
-- VkRenderPass
-- VkPipelineLayout
-- VkShaderModule
-- VkPipeline
-- VkFramebuffer
-- VkCommandPool
-- VkCommandBuffer
-- Synchronization Primitives
+- [ ] Memory
+- [x] Triangle
+- [ ] Model
+- [x] Camera
+- [ ] Smooth Camera
+- [ ] Batch Rendering
+- [ ] Input System
+- [ ] Mouse Picking
+- [ ] Gui Integration
+
+## Bans
+
+- Custom allocator for Vulkan resources.
+
+## Vulkan Initialization
+
+### Offline Rendering
+
+1. VkInstance
+2. VkDebugMessenger
+4. VkPhysicalDevice
+5. VkDevice
+7. VkImage
+8. VkImageView
+9. VkRenderPass
+10. VkPipelineLayout
+11. VkShaderModule
+12. VkPipeline
+13. VkFramebuffer
+14. VkCommandPool
+15. VkCommandBuffer
+16. VkSemaphore
+17. VkFence
+
+### Realtime Rendering
+
+1. ...
+2. VkDebugMessenger
+3. VkSurfaceKHR (display extension)
+4. VkPhysicalDevice
+5. VkDevice
+6. VkSwapchainKHR (display extension)
+7. ...
 
 ## Swapchain Recreation
 
