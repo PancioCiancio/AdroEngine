@@ -65,6 +65,27 @@ private:
 
 };
 
+/// Groups of all scene vertex data.
+struct Batch
+{
+	std::vector<glm::vec3> position;
+	std::vector<glm::vec4> color;
+	std::vector<uint32_t>  indices;
+};
+
+/// Packs all buffer and memory used for graphics.
+struct BatchRender
+{
+	VkBuffer       position_buffer = {};
+	VkDeviceMemory position_memory = {};
+
+	VkBuffer       color_buffer = {};
+	VkDeviceMemory color_memory = {};
+
+	VkBuffer       index_buffer = {};
+	VkDeviceMemory index_memory = {};
+};
+
 class VkApp
 {
 public:
@@ -115,8 +136,7 @@ private:
 
 	VkSurfaceCapabilitiesKHR surface_capabilities_ = {};
 
-	VkBuffer       triangle_buffer_        = {};
-	VkDeviceMemory triangle_buffer_memory_ = {};
+	BatchRender batch_render_ = {};
 };
 
 #endif //VKAPP_H

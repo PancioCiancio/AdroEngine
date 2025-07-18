@@ -286,41 +286,98 @@ VkResult VkApp::Init()
 		&allocator_,
 		&submit_finished_fence_);
 
-	const Graphics::Vertex vertices[] = {
-		{{0.0f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},
-		{{0.5f, 0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-		{{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}}
+	const Batch batch = {
+		{{0.0f, -0.5f, 0.0f}, {0.5f, 0.5f, 0.0f}, {-0.5f, 0.5f, 0.0f}},
+		{{1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f, 0.0f}},
+		{0, 1, 2}
 	};
 
-	constexpr size_t triangle_vertex_buffer_size = sizeof(Graphics::Vertex) * 3;
-
+	const size_t position_buffer_size = sizeof(glm::vec3) * batch.position.size();
 	Graphics::CreateBuffer(
 		device_,
 		gpu_,
-		triangle_vertex_buffer_size,
+		position_buffer_size,
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
 		&allocator_,
-		&triangle_buffer_,
-		&triangle_buffer_memory_);
+		&batch_render_.position_buffer,
+		&batch_render_.position_memory);
 
-	void* triangle_data = nullptr;
+	void* position_data = nullptr;
 	VK_CHECK(vkMapMemory(
 		device_,
-		triangle_buffer_memory_,
+		batch_render_.position_memory,
 		0,
-		triangle_vertex_buffer_size,
+		position_buffer_size,
 		0,
-		&triangle_data));
+		&position_data));
 
 	memcpy(
-		triangle_data,
-		&vertices[0],
-		triangle_vertex_buffer_size);
+		position_data,
+		&batch.position[0],
+		position_buffer_size);
 
 	vkUnmapMemory(
 		device_,
-		triangle_buffer_memory_);
+		batch_render_.position_memory);
+
+	const size_t color_buffer_size = sizeof(glm::vec4) * batch.color.size();
+	Graphics::CreateBuffer(
+		device_,
+		gpu_,
+		color_buffer_size,
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+		&allocator_,
+		&batch_render_.color_buffer,
+		&batch_render_.color_memory);
+
+	void* color_data = nullptr;
+	VK_CHECK(vkMapMemory(
+		device_,
+		batch_render_.color_memory,
+		0,
+		color_buffer_size,
+		0,
+		&color_data));
+
+	memcpy(
+		color_data,
+		&batch.color[0],
+		color_buffer_size);
+
+	vkUnmapMemory(
+		device_,
+		batch_render_.color_memory);
+
+	const size_t index_buffer_size = sizeof(uint32_t) * batch.indices.size();
+	Graphics::CreateBuffer(
+		device_,
+		gpu_,
+		index_buffer_size,
+		VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+		&allocator_,
+		&batch_render_.index_buffer,
+		&batch_render_.index_memory);
+
+	void* index_data = nullptr;
+	VK_CHECK(vkMapMemory(
+		device_,
+		batch_render_.index_memory,
+		0,
+		index_buffer_size,
+		0,
+		&index_data));
+
+	memcpy(
+		index_data,
+		&batch.indices[0],
+		index_buffer_size);
+
+	vkUnmapMemory(
+		device_,
+		batch_render_.index_memory);
 
 	// Render Pass
 
@@ -443,6 +500,7 @@ VkResult VkApp::Init()
 		vert_shader_code,
 		&allocator_,
 		&shader_modules[0]);
+
 	Graphics::CreateShaderModule(
 		device_,
 		frag_shader_code,
@@ -485,10 +543,19 @@ VkResult VkApp::Init()
 		.pDynamicStates = dynamic_states.data(),
 	};
 
-	const VkVertexInputBindingDescription binding_description = {
-		.binding = 0,
-		.stride = sizeof(Graphics::Vertex),
-		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+	const VkVertexInputBindingDescription bind_descs[] = {
+		// position
+		{
+			.binding = 0,
+			.stride = sizeof(glm::vec3),
+			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+		},
+		// color.
+		{
+			.binding = 1,
+			.stride = sizeof(glm::vec4),
+			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+		}
 	};
 
 	const VkVertexInputAttributeDescription attribute_description[2] = {
@@ -496,13 +563,13 @@ VkResult VkApp::Init()
 			.location = 0,
 			.binding = 0,
 			.format = VK_FORMAT_R32G32B32_SFLOAT,
-			.offset = offsetof(Graphics::Vertex, pos)
+			.offset = 0
 		},
 		{
 			.location = 1,
-			.binding = 0,
+			.binding = 1,
 			.format = VK_FORMAT_R32G32B32_SFLOAT,
-			.offset = offsetof(Graphics::Vertex, color)
+			.offset = 0
 		}
 	};
 
@@ -510,8 +577,8 @@ VkResult VkApp::Init()
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.vertexBindingDescriptionCount = 1,
-		.pVertexBindingDescriptions = &binding_description,
+		.vertexBindingDescriptionCount = 2,
+		.pVertexBindingDescriptions = &bind_descs[0],
 		.vertexAttributeDescriptionCount = 2,
 		.pVertexAttributeDescriptions = &attribute_description[0],
 	};
@@ -746,6 +813,17 @@ constexpr double targetFrameTime = 1000.0 / targetFPS; // in milliseconds
 
 VkResult VkApp::Update()
 {
+	// Camera data
+	glm::vec3       camera_pos        = {0.0f, 0.0f, 2.0f};
+	glm::vec3       camera_pos_new    = {0.0f, 0.0f, 2.0f};
+	glm::vec3       camera_front      = {0.0f, 0.0f, -1.0f};
+	glm::vec3       camera_up         = {0.0f, 1.0f, 0.0f};
+	constexpr float camera_move_speed = 3.0f;
+
+	constexpr float p         = 1.0f / 100.0f;
+	constexpr float t         = 0.369f;
+	const float     half_time = -t / glm::log2(p);
+
 	bool stillRunning = true;
 	while (stillRunning)
 	{
@@ -753,9 +831,15 @@ VkResult VkApp::Update()
 		NOW  = SDL_GetPerformanceCounter();
 
 		// Calculate delta time in seconds
-		deltaTime = static_cast<double>((NOW - LAST) * 1000) / static_cast<double>(SDL_GetPerformanceFrequency());
+		deltaTime = static_cast<double>(NOW - LAST) / static_cast<double>(SDL_GetPerformanceFrequency());
+
+		const float camera_lerp_alpha = 1.0f - glm::pow(2.0f, -static_cast<float>(deltaTime) / half_time);
 
 		SDL_Event event;
+
+		// Input state
+		const Uint8* key_states = SDL_GetKeyboardState(nullptr);
+
 		while (SDL_PollEvent(&event))
 		{
 			switch (event.type)
@@ -768,7 +852,33 @@ VkResult VkApp::Update()
 				// Do nothing.
 				break;
 			}
+
+			if (key_states[SDL_SCANCODE_W])
+			{
+				camera_pos_new += camera_move_speed * static_cast<float>(deltaTime) * camera_front;
+			}
+
+			if (key_states[SDL_SCANCODE_S])
+			{
+				camera_pos_new -= camera_move_speed * static_cast<float>(deltaTime) * camera_front;
+			}
+
+			if (key_states[SDL_SCANCODE_A])
+			{
+				camera_pos_new -= glm::normalize(glm::cross(camera_front, camera_up)) * camera_move_speed *
+					static_cast<
+						float>(deltaTime);
+			}
+
+			if (key_states[SDL_SCANCODE_D])
+			{
+				camera_pos_new += glm::normalize(glm::cross(camera_front, camera_up)) * camera_move_speed *
+					static_cast<
+						float>(deltaTime);
+			}
 		}
+
+		camera_pos = glm::mix(camera_pos, camera_pos_new, camera_lerp_alpha);
 
 		vkWaitForFences(
 			device_,
@@ -793,9 +903,9 @@ VkResult VkApp::Update()
 
 		Graphics::PerFrameData u_buffer = {
 			glm::lookAt(
-				glm::vec3(0.0f, 0.0f, 2.0f),
-				glm::vec3(0.0f, 0.0f, 0.0f),
-				glm::vec3(0.0f, 1.0f, 0.0f)),
+				camera_pos,
+				camera_pos + camera_front,
+				camera_up),
 
 			glm::perspective(
 				glm::radians(45.0f),
@@ -902,20 +1012,34 @@ VkResult VkApp::Update()
 			1,
 			&scissor);
 
+		const VkBuffer binds_buffer[] = {
+			batch_render_.position_buffer,
+			batch_render_.color_buffer,
+		};
+
 		const VkDeviceSize offsets[] = {
-			0};
+			0,
+			0
+		};
 
 		vkCmdBindVertexBuffers(
 			command_buffer_,
 			0,
-			1,
-			&triangle_buffer_,
+			2,
+			&binds_buffer[0],
 			&offsets[0]);
 
-		vkCmdDraw(
+		vkCmdBindIndexBuffer(
+			command_buffer_,
+			batch_render_.index_buffer,
+			0,
+			VK_INDEX_TYPE_UINT32);
+
+		vkCmdDrawIndexed(
 			command_buffer_,
 			3,
 			1,
+			0,
 			0,
 			0);
 
