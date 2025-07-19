@@ -816,7 +816,7 @@ void VkApp::Update()
 	glm::vec3       camera_pos_new    = {0.0f, 0.0f, 2.0f};
 	glm::vec3       camera_front      = {0.0f, 0.0f, -1.0f};
 	glm::vec3       camera_up         = {0.0f, 1.0f, 0.0f};
-	constexpr float camera_move_speed = 3.0f;
+	constexpr float camera_move_speed = 1.639f;
 
 	constexpr float p         = 1.0f / 100.0f;
 	constexpr float t         = 0.369f;
@@ -836,7 +836,6 @@ void VkApp::Update()
 		SDL_Event event;
 
 		// Input state
-		const Uint8* key_states = SDL_GetKeyboardState(nullptr);
 
 		while (SDL_PollEvent(&event))
 		{
@@ -850,30 +849,32 @@ void VkApp::Update()
 				// Do nothing.
 				break;
 			}
+		}
 
-			if (key_states[SDL_SCANCODE_W])
-			{
-				camera_pos_new += camera_move_speed * static_cast<float>(deltaTime) * camera_front;
-			}
+		const Uint8* key_states = SDL_GetKeyboardState(nullptr);
 
-			if (key_states[SDL_SCANCODE_S])
-			{
-				camera_pos_new -= camera_move_speed * static_cast<float>(deltaTime) * camera_front;
-			}
+		if (key_states[SDL_SCANCODE_W])
+		{
+			camera_pos_new += camera_move_speed * static_cast<float>(deltaTime) * camera_front;
+		}
 
-			if (key_states[SDL_SCANCODE_A])
-			{
-				camera_pos_new -= glm::normalize(glm::cross(camera_front, camera_up)) * camera_move_speed *
-					static_cast<
-						float>(deltaTime);
-			}
+		if (key_states[SDL_SCANCODE_S])
+		{
+			camera_pos_new -= camera_move_speed * static_cast<float>(deltaTime) * camera_front;
+		}
 
-			if (key_states[SDL_SCANCODE_D])
-			{
-				camera_pos_new += glm::normalize(glm::cross(camera_front, camera_up)) * camera_move_speed *
-					static_cast<
-						float>(deltaTime);
-			}
+		if (key_states[SDL_SCANCODE_A])
+		{
+			camera_pos_new -= glm::normalize(glm::cross(camera_front, camera_up)) * camera_move_speed *
+				static_cast<
+					float>(deltaTime);
+		}
+
+		if (key_states[SDL_SCANCODE_D])
+		{
+			camera_pos_new += glm::normalize(glm::cross(camera_front, camera_up)) * camera_move_speed *
+				static_cast<
+					float>(deltaTime);
 		}
 
 		camera_pos = glm::mix(camera_pos, camera_pos_new, camera_lerp_alpha);
