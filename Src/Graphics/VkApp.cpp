@@ -2,10 +2,10 @@
 // Created by apant on 05/07/2025.
 //
 
-#include "VkApp.h"
+#include "Include/VkApp.h"
 
-#include "FileSystem.h"
-#include "Graphics.h"
+#include "../FileSystem.h"
+#include "Include/Graphics.h"
 
 #define VOLK_IMPLEMENTATION
 #include <volk/volk.h>
@@ -66,7 +66,7 @@ void Allocator::Free(
 }
 
 
-VkResult VkApp::Init()
+void VkApp::Init()
 {
 	// Init the window class
 	VK_CHECK((SDL_Init(SDL_INIT_VIDEO) == 0)
@@ -491,8 +491,8 @@ VkResult VkApp::Init()
 
 	// Vulkan Pipeline
 
-	auto vert_shader_code = FileSystem::ReadFile("Resources/Shaders/vert.spv");
-	auto frag_shader_code = FileSystem::ReadFile("Resources/Shaders/frag.spv");
+	auto vert_shader_code = FileSystem::ReadFile("../Resources/Shaders/vert.spv");
+	auto frag_shader_code = FileSystem::ReadFile("../Resources/Shaders/frag.spv");
 
 	VkShaderModule shader_modules[2] = {};
 	Graphics::CreateShaderModule(
@@ -798,8 +798,6 @@ VkResult VkApp::Init()
 
 	vkDestroyShaderModule(device_, shader_modules[0], &allocator_);
 	vkDestroyShaderModule(device_, shader_modules[1], &allocator_);
-
-	return VK_SUCCESS;
 }
 
 // Timing variables
@@ -811,7 +809,7 @@ double deltaTime = 0;
 constexpr int    targetFPS       = 60;
 constexpr double targetFrameTime = 1000.0 / targetFPS; // in milliseconds
 
-VkResult VkApp::Update()
+void VkApp::Update()
 {
 	// Camera data
 	glm::vec3       camera_pos        = {0.0f, 0.0f, 2.0f};
@@ -1097,11 +1095,9 @@ VkResult VkApp::Update()
 			SDL_Delay(static_cast<Uint32>(targetFrameTime - deltaTime));
 		}
 	}
-
-	return VK_SUCCESS;
 }
 
-VkResult VkApp::TearDown() const
+void VkApp::TearDown() const
 {
 	VK_CHECK(vkDeviceWaitIdle(device_));
 
@@ -1113,6 +1109,4 @@ VkResult VkApp::TearDown() const
 
 	SDL_DestroyWindow(window_);
 	SDL_Quit();
-
-	return VK_SUCCESS;
 }

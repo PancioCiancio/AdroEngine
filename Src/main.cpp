@@ -1,6 +1,5 @@
 #include "VkApp.h"
 
-
 int main()
 {
 	VkApp app = {};
