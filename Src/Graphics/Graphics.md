@@ -88,3 +88,8 @@ vertex property (e.g. position, uvs, color).
 
 - [ ] Check hardware memory buffer limitation
 - [ ] Consider to group vertex properties into a single memory buffer.
+
+### Vertex, Index Buffers
+
+- Keep it mapped after creation (no need to unmap)
+- Duplicate/separate regions (per frame in flight) is only required if you update the buffers in between frames.

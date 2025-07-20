@@ -6,6 +6,7 @@
 
 #include "../FileSystem.h"
 #include "Include/Graphics.h"
+#include "Mesh.h"
 
 #define VOLK_IMPLEMENTATION
 #include <volk/volk.h>
@@ -286,11 +287,16 @@ void VkApp::Init()
 		&allocator_,
 		&submit_finished_fence_);
 
-	const Batch batch = {
-		{{0.0f, -0.5f, 0.0f}, {0.5f, 0.5f, 0.0f}, {-0.5f, 0.5f, 0.0f}},
-		{{1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f, 0.0f}},
-		{0, 1, 2}
-	};
+	// const Batch batch = {
+	// 	{{0.0f, -0.5f, 0.0f}, {0.5f, 0.5f, 0.0f}, {-0.5f, 0.5f, 0.0f}},
+	// 	{{1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f, 0.0f}},
+	// 	{0, 1, 2}
+	// };
+
+	Batch batch = {};
+	Mesh::Load("../Resources/Meshes/dragon.obj", &batch);
+	std::vector<glm::vec4> default_colors(batch.position.size(), glm::vec4(.5f, .5f, .5f, 1.0f));
+	batch.color = default_colors;
 
 	const size_t position_buffer_size = sizeof(glm::vec3) * batch.position.size();
 	Graphics::CreateBuffer(
@@ -320,6 +326,35 @@ void VkApp::Init()
 	vkUnmapMemory(
 		device_,
 		batch_render_.position_memory);
+
+	const size_t normal_buffer_size = sizeof(glm::vec3) * batch.normals.size();
+	Graphics::CreateBuffer(
+		device_,
+		gpu_,
+		normal_buffer_size,
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+		&allocator_,
+		&batch_render_.normal_buffer,
+		&batch_render_.normal_memory);
+
+	void* normal_data = nullptr;
+	VK_CHECK(vkMapMemory(
+		device_,
+		batch_render_.normal_memory,
+		0,
+		normal_buffer_size,
+		0,
+		&normal_data));
+
+	memcpy(
+		normal_data,
+		&batch.normals[0],
+		normal_buffer_size);
+
+	vkUnmapMemory(
+		device_,
+		batch_render_.normal_memory);
 
 	const size_t color_buffer_size = sizeof(glm::vec4) * batch.color.size();
 	Graphics::CreateBuffer(
@@ -555,10 +590,16 @@ void VkApp::Init()
 			.binding = 1,
 			.stride = sizeof(glm::vec4),
 			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+		},
+		// normal.
+		{
+			.binding = 2,
+			.stride = sizeof(glm::vec3),
+			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
 		}
 	};
 
-	const VkVertexInputAttributeDescription attribute_description[2] = {
+	const VkVertexInputAttributeDescription attribute_description[3] = {
 		{
 			.location = 0,
 			.binding = 0,
@@ -570,6 +611,12 @@ void VkApp::Init()
 			.binding = 1,
 			.format = VK_FORMAT_R32G32B32_SFLOAT,
 			.offset = 0
+		},
+		{
+			.location = 2,
+			.binding = 2,
+			.format = VK_FORMAT_R32G32B32_SFLOAT,
+			.offset = 0
 		}
 	};
 
@@ -577,9 +624,9 @@ void VkApp::Init()
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 		.pNext = nullptr,
 		.flags = 0,
-		.vertexBindingDescriptionCount = 2,
+		.vertexBindingDescriptionCount = 3,
 		.pVertexBindingDescriptions = &bind_descs[0],
-		.vertexAttributeDescriptionCount = 2,
+		.vertexAttributeDescriptionCount = 3,
 		.pVertexAttributeDescriptions = &attribute_description[0],
 	};
 
@@ -624,7 +671,7 @@ void VkApp::Init()
 		.rasterizerDiscardEnable = VK_FALSE,
 		.polygonMode = VK_POLYGON_MODE_FILL,
 		.cullMode = VK_CULL_MODE_BACK_BIT,
-		.frontFace = VK_FRONT_FACE_CLOCKWISE,
+		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 		.depthBiasEnable = VK_FALSE,
 		.depthBiasConstantFactor = 0.0f,
 		.depthBiasClamp = 0.0f,
@@ -812,14 +859,14 @@ constexpr double targetFrameTime = 1000.0 / targetFPS; // in milliseconds
 void VkApp::Update()
 {
 	// Camera data
-	glm::vec3       camera_pos        = {0.0f, 0.0f, 2.0f};
-	glm::vec3       camera_pos_new    = {0.0f, 0.0f, 2.0f};
+	glm::vec3       camera_pos        = {0.0f, 4.0f, 10.0f};
+	glm::vec3       camera_pos_new    = {0.0f, 4.0f, 10.0f};
 	glm::vec3       camera_front      = {0.0f, 0.0f, -1.0f};
 	glm::vec3       camera_up         = {0.0f, 1.0f, 0.0f};
 	constexpr float camera_move_speed = 1.639f;
 
 	constexpr float p         = 1.0f / 100.0f;
-	constexpr float t         = 0.369f;
+	constexpr float t         = 0.396f;
 	const float     half_time = -t / glm::log2(p);
 
 	bool stillRunning = true;
@@ -911,8 +958,10 @@ void VkApp::Update()
 				static_cast<float>(surface_capabilities_.currentExtent.width) /
 				static_cast<float>(surface_capabilities_.currentExtent.height),
 				0.1f,
-				10.0f),
+				125.0f),
 		};
+
+		u_buffer.projection[1][1] *= -1;
 
 		VK_CHECK(vkMapMemory(
 			device_,
@@ -1014,9 +1063,11 @@ void VkApp::Update()
 		const VkBuffer binds_buffer[] = {
 			batch_render_.position_buffer,
 			batch_render_.color_buffer,
+			batch_render_.normal_buffer,
 		};
 
 		const VkDeviceSize offsets[] = {
+			0,
 			0,
 			0
 		};
@@ -1024,7 +1075,7 @@ void VkApp::Update()
 		vkCmdBindVertexBuffers(
 			command_buffer_,
 			0,
-			2,
+			3,
 			&binds_buffer[0],
 			&offsets[0]);
 
@@ -1036,7 +1087,7 @@ void VkApp::Update()
 
 		vkCmdDrawIndexed(
 			command_buffer_,
-			3,
+			300000,
 			1,
 			0,
 			0,

@@ -65,6 +65,7 @@ private:
 /// Groups of all scene vertex data.
 struct Batch {
 	std::vector<glm::vec3> position;
+	std::vector<glm::vec3> normals;
 	std::vector<glm::vec4> color;
 	std::vector<uint32_t> indices;
 };
@@ -73,6 +74,9 @@ struct Batch {
 struct BatchRender {
 	VkBuffer position_buffer = {};
 	VkDeviceMemory position_memory = {};
+
+	VkBuffer normal_buffer = {};
+	VkDeviceMemory normal_memory = {};
 
 	VkBuffer color_buffer = {};
 	VkDeviceMemory color_memory = {};
