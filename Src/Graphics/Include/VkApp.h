@@ -128,6 +128,10 @@ private:
 	VkImageView framebuffer_sample_image_view_ = {};
 	VkDeviceMemory framebuffer_sample_image_memory_ = {};
 
+	VkImage depth_stencil_image_ = {};
+	VkImageView depth_stencil_image_view_ = {};
+	VkDeviceMemory depth_stencil_memory_ = {};
+
 	VkSurfaceCapabilitiesKHR surface_capabilities_ = {};
 
 	BatchRender batch_render_ = {};

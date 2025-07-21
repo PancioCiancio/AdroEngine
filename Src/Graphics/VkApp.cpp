@@ -92,14 +92,14 @@ void VkApp::Init()
 		{VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
 		 VK_KHR_SURFACE_EXTENSION_NAME,
 		 VK_KHR_WIN32_SURFACE_EXTENSION_NAME},
-		&allocator_,
+		nullptr,
 		&instance_);
 
 	volkLoadInstance(instance_);
 
 	Graphics::CreateDebugMessenger(
 		instance_,
-		&allocator_,
+		nullptr,
 		&debug_messenger_);
 
 	// Create the surface
@@ -143,7 +143,7 @@ void VkApp::Init()
 		&queue_family_index,
 		device_extensions,
 		&gpu_required_features,
-		&allocator_,
+		nullptr,
 		&device_);
 
 	vkGetDeviceQueue(
@@ -171,7 +171,7 @@ void VkApp::Init()
 		&surface_capabilities_,
 		// At this point is VK_NULL_HANDLE
 		swapchain_,
-		&allocator_,
+		nullptr,
 		&swapchain_);
 
 	// Resize per-frame presentation
@@ -194,7 +194,7 @@ void VkApp::Init()
 			buffer_size,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			&allocator_,
+			nullptr,
 			&per_frame_data_buffers_[i],
 			&per_frame_data_memories_[i]);
 	}
@@ -209,6 +209,7 @@ void VkApp::Init()
 		Graphics::CreateImageView(
 			device_,
 			presentation_frames_.images[i],
+			VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_IMAGE_VIEW_TYPE_2D,
 			surface_format.format,
 			{
@@ -216,7 +217,7 @@ void VkApp::Init()
 				VK_COMPONENT_SWIZZLE_IDENTITY,
 				VK_COMPONENT_SWIZZLE_IDENTITY,
 				VK_COMPONENT_SWIZZLE_IDENTITY},
-			&allocator_,
+			nullptr,
 			&presentation_frames_.image_views[i]);
 	}
 
@@ -240,13 +241,14 @@ void VkApp::Init()
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		&allocator_,
+		nullptr,
 		&framebuffer_sample_image_,
 		&framebuffer_sample_image_memory_);
 
 	Graphics::CreateImageView(
 		device_,
 		framebuffer_sample_image_,
+		VK_IMAGE_ASPECT_COLOR_BIT,
 		VK_IMAGE_VIEW_TYPE_2D,
 		surface_format.format,
 		{
@@ -255,14 +257,45 @@ void VkApp::Init()
 			VK_COMPONENT_SWIZZLE_IDENTITY,
 			VK_COMPONENT_SWIZZLE_IDENTITY
 		},
-		&allocator_,
+		nullptr,
 		&framebuffer_sample_image_view_);
+
+	// Depth + Stencil
+
+	Graphics::CreateImage(
+		device_,
+		gpu_,
+		VK_IMAGE_TYPE_2D,
+		VK_FORMAT_D32_SFLOAT_S8_UINT,
+		{surface_capabilities_.currentExtent.width, surface_capabilities_.currentExtent.width, 1},
+		sample_counts,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		nullptr,
+		&depth_stencil_image_,
+		&depth_stencil_memory_);
+
+	Graphics::CreateImageView(
+		device_,
+		depth_stencil_image_,
+		VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+		VK_IMAGE_VIEW_TYPE_2D,
+		VK_FORMAT_D32_SFLOAT_S8_UINT,
+		{
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY
+		},
+		nullptr,
+		&depth_stencil_image_view_);
 
 	Graphics::CreateCommandPool(
 		device_,
 		VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		queue_family_index,
-		&allocator_,
+		nullptr,
 		&command_pool_);
 
 	Graphics::CreateCommandBuffer(
@@ -274,24 +307,18 @@ void VkApp::Init()
 
 	Graphics::CreateSemaphore(
 		device_,
-		&allocator_,
+		nullptr,
 		&image_available_semaphore_);
 
 	Graphics::CreateSemaphore(
 		device_,
-		&allocator_,
+		nullptr,
 		&render_finished_semaphore_);
 
 	Graphics::CreateFence(
 		device_,
-		&allocator_,
+		nullptr,
 		&submit_finished_fence_);
-
-	// const Batch batch = {
-	// 	{{0.0f, -0.5f, 0.0f}, {0.5f, 0.5f, 0.0f}, {-0.5f, 0.5f, 0.0f}},
-	// 	{{1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f, 0.0f}},
-	// 	{0, 1, 2}
-	// };
 
 	Batch batch = {};
 	Mesh::Load("../Resources/Meshes/dragon.obj", &batch);
@@ -305,7 +332,7 @@ void VkApp::Init()
 		position_buffer_size,
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-		&allocator_,
+		nullptr,
 		&batch_render_.position_buffer,
 		&batch_render_.position_memory);
 
@@ -334,7 +361,7 @@ void VkApp::Init()
 		normal_buffer_size,
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-		&allocator_,
+		nullptr,
 		&batch_render_.normal_buffer,
 		&batch_render_.normal_memory);
 
@@ -363,7 +390,7 @@ void VkApp::Init()
 		color_buffer_size,
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-		&allocator_,
+		nullptr,
 		&batch_render_.color_buffer,
 		&batch_render_.color_memory);
 
@@ -392,7 +419,7 @@ void VkApp::Init()
 		index_buffer_size,
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-		&allocator_,
+		nullptr,
 		&batch_render_.index_buffer,
 		&batch_render_.index_memory);
 
@@ -446,8 +473,26 @@ void VkApp::Init()
 	};
 
 	constexpr VkAttachmentReference color_attachment_resolve_ref = {
-		.attachment = 1,
+		.attachment = 2,
 		.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+	};
+
+	// Depth + stencil
+	const VkAttachmentDescription depth_attachment = {
+		.flags = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.format = VK_FORMAT_D32_SFLOAT_S8_UINT,
+		.samples = sample_counts,
+		.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+		.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+	};
+
+	const VkAttachmentReference depth_attachment_reference = {
+		.attachment = 1,
+		.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
 	};
 
 	const VkSubpassDescription subpass = {
@@ -458,7 +503,7 @@ void VkApp::Init()
 		.colorAttachmentCount = 1,
 		.pColorAttachments = &color_attachment_ref,
 		.pResolveAttachments = &color_attachment_resolve_ref,
-		.pDepthStencilAttachment = nullptr,
+		.pDepthStencilAttachment = &depth_attachment_reference,
 		.preserveAttachmentCount = 0,
 		.pPreserveAttachments = nullptr,
 	};
@@ -473,9 +518,10 @@ void VkApp::Init()
 		.dependencyFlags = 0,
 	};
 
-	constexpr uint32_t            attachment_desc_count                   = 2;
+	constexpr uint32_t            attachment_desc_count                   = 3;
 	const VkAttachmentDescription attachment_descs[attachment_desc_count] = {
 		color_attachment,
+		depth_attachment,
 		color_attachment_resolve,
 	};
 
@@ -494,14 +540,15 @@ void VkApp::Init()
 	VK_CHECK(vkCreateRenderPass(
 		device_,
 		&render_pass_create_info,
-		&allocator_,
+		nullptr,
 		&render_pass_));
 
 	for (size_t i = 0; i < surface_capabilities_.minImageCount; i++)
 	{
-		constexpr uint32_t attachments_count              = 2;
+		constexpr uint32_t attachments_count              = 3;
 		const VkImageView  attachments[attachments_count] = {
 			framebuffer_sample_image_view_, // Multisample
+			depth_stencil_image_view_,
 			presentation_frames_.image_views[i], // Multisample resolver to 1 sample.
 		};
 
@@ -520,7 +567,7 @@ void VkApp::Init()
 		VK_CHECK(vkCreateFramebuffer(
 			device_,
 			&framebuffer_info,
-			&allocator_,
+			nullptr,
 			&presentation_frames_.framebuffers[i]));
 	}
 
@@ -533,13 +580,13 @@ void VkApp::Init()
 	Graphics::CreateShaderModule(
 		device_,
 		vert_shader_code,
-		&allocator_,
+		nullptr,
 		&shader_modules[0]);
 
 	Graphics::CreateShaderModule(
 		device_,
 		frag_shader_code,
-		&allocator_,
+		nullptr,
 		&shader_modules[1]);
 
 	const VkPipelineShaderStageCreateInfo vert_shader_stage_create_info = {
@@ -609,7 +656,7 @@ void VkApp::Init()
 		{
 			.location = 1,
 			.binding = 1,
-			.format = VK_FORMAT_R32G32B32_SFLOAT,
+			.format = VK_FORMAT_R32G32B32A32_SFLOAT,
 			.offset = 0
 		},
 		{
@@ -732,7 +779,7 @@ void VkApp::Init()
 	VK_CHECK(vkCreateDescriptorSetLayout(
 		device_,
 		&layout_info,
-		&allocator_,
+		nullptr,
 		&descriptor_set_layout_));
 
 	const VkPipelineLayoutCreateInfo pipeline_layout_info = {
@@ -748,8 +795,22 @@ void VkApp::Init()
 	VK_CHECK(vkCreatePipelineLayout(
 		device_,
 		&pipeline_layout_info,
-		&allocator_,
+		nullptr,
 		&pipeline_layout_));
+
+	// depth + stencil
+	const VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+		.depthTestEnable = VK_TRUE,
+		.depthWriteEnable = VK_TRUE,
+		.depthCompareOp = VK_COMPARE_OP_LESS,
+		.depthBoundsTestEnable = VK_FALSE,
+		.stencilTestEnable = VK_FALSE,
+		.front = {},
+		.back = {},
+		.minDepthBounds = 0.0f,
+		.maxDepthBounds = 1.0f,
+	};
 
 	const VkGraphicsPipelineCreateInfo pipeline_info = {
 		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -763,7 +824,7 @@ void VkApp::Init()
 		.pViewportState = &viewport_info,
 		.pRasterizationState = &rasterization_info,
 		.pMultisampleState = &multisample_info,
-		.pDepthStencilState = nullptr,
+		.pDepthStencilState = &depth_stencil_state_create_info,
 		.pColorBlendState = &color_blend_info,
 		.pDynamicState = &dynamic_state_create_info,
 		.layout = pipeline_layout_,
@@ -778,7 +839,7 @@ void VkApp::Init()
 		VK_NULL_HANDLE,
 		1,
 		&pipeline_info,
-		&allocator_,
+		nullptr,
 		&pipeline_));
 
 	const VkDescriptorPoolSize pool_size = {
@@ -796,7 +857,7 @@ void VkApp::Init()
 	VK_CHECK(vkCreateDescriptorPool(
 		device_,
 		&pool_create_info,
-		&allocator_,
+		nullptr,
 		&descriptor_pool_));
 
 	std::vector<VkDescriptorSetLayout> layouts(
@@ -843,8 +904,66 @@ void VkApp::Init()
 			nullptr);
 	}
 
-	vkDestroyShaderModule(device_, shader_modules[0], &allocator_);
-	vkDestroyShaderModule(device_, shader_modules[1], &allocator_);
+	vkDestroyShaderModule(device_, shader_modules[0], nullptr);
+	vkDestroyShaderModule(device_, shader_modules[1], nullptr);
+
+	// Transition depth + stencil image layout.
+
+	const VkCommandBufferBeginInfo command_buffer_begin_info = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+	};
+
+	vkBeginCommandBuffer(
+		command_buffer_,
+		&command_buffer_begin_info);
+
+	const VkImageMemoryBarrier barrier = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.srcAccessMask = 0,
+		.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+		.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+		.image = depth_stencil_image_,
+		.subresourceRange = {
+			.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+			.baseMipLevel = 0,
+			.levelCount = 1,
+			.baseArrayLayer = 0,
+			.layerCount = 1,
+		},
+	};
+
+	const VkPipelineStageFlags source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+	const VkPipelineStageFlags destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+
+	vkCmdPipelineBarrier(
+		command_buffer_,
+		source_stage,
+		destination_stage,
+		0,
+		0,
+		nullptr,
+		0,
+		nullptr,
+		1,
+		&barrier);
+
+	vkEndCommandBuffer(command_buffer_);
+
+	const VkSubmitInfo submit_info = {
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &command_buffer_
+	};
+
+	vkQueueSubmit(
+		queue_,
+		1,
+		&submit_info,
+		VK_NULL_HANDLE);
+
+	vkQueueWaitIdle(queue_);
 }
 
 // Timing variables
@@ -1004,11 +1123,14 @@ void VkApp::Update()
 			0,
 			nullptr);
 
-		constexpr VkClearValue clear_value = {
-			.color = {
-				.float32 = {0.0f, 0.0f, 0.0f, 1.0f}
+		constexpr VkClearValue clear_value[2] = {
+			{
+				.color = {
+					.float32 = {0.0f, 0.0f, 0.0f, 1.0f}}
 			},
-			// .depthStencil = {0.0f, 0}
+			{
+				.depthStencil = {1.0f, 0},
+			}
 		};
 
 		VkRenderPassBeginInfo render_pass_begin_info = {
@@ -1020,8 +1142,8 @@ void VkApp::Update()
 				.offset = {0, 0},
 				.extent = surface_capabilities_.currentExtent,
 			},
-			.clearValueCount = 1,
-			.pClearValues = &clear_value,
+			.clearValueCount = 2,
+			.pClearValues = &clear_value[0],
 		};
 
 		vkCmdBeginRenderPass(
@@ -1153,11 +1275,11 @@ void VkApp::TearDown() const
 {
 	VK_CHECK(vkDeviceWaitIdle(device_));
 
-	vkDestroySwapchainKHR(device_, swapchain_, &allocator_);
+	vkDestroySwapchainKHR(device_, swapchain_, nullptr);
 	vkFreeCommandBuffers(device_, command_pool_, 1, &command_buffer_);
-	vkDestroyCommandPool(device_, command_pool_, &allocator_);
-	vkDestroyDevice(device_, &allocator_);
-	vkDestroyInstance(instance_, &allocator_);
+	vkDestroyCommandPool(device_, command_pool_, nullptr);
+	vkDestroyDevice(device_, nullptr);
+	vkDestroyInstance(instance_, nullptr);
 
 	SDL_DestroyWindow(window_);
 	SDL_Quit();

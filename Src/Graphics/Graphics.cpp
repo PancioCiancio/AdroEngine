@@ -797,6 +797,7 @@ void Graphics::CreateImage(
 void Graphics::CreateImageView(
 	VkDevice               device,
 	VkImage                image,
+	VkImageAspectFlags     aspect_flags,
 	VkImageViewType        view_type,
 	VkFormat               format,
 	VkComponentMapping     components,
@@ -804,7 +805,7 @@ void Graphics::CreateImageView(
 	VkImageView*           p_image_view)
 {
 	const VkImageSubresourceRange image_subresource_range = {
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.aspectMask = aspect_flags,
 		.baseMipLevel = 0,
 		.levelCount = 1,
 		.baseArrayLayer = 0,
