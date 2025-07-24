@@ -321,7 +321,7 @@ void VkApp::Init()
 		&submit_finished_fence_);
 
 	Batch batch = {};
-	Mesh::Load("../Resources/Meshes/dragon.obj", &batch);
+	Mesh::Load("../Resources/Meshes/lucy.obj", &batch);
 	std::vector<glm::vec4> default_colors(batch.position.size(), glm::vec4(.5f, .5f, .5f, 1.0f));
 	batch.color = default_colors;
 
@@ -978,11 +978,11 @@ constexpr double targetFrameTime = 1000.0 / targetFPS; // in milliseconds
 void VkApp::Update()
 {
 	// Camera data
-	glm::vec3       camera_pos        = {0.0f, 4.0f, 10.0f};
-	glm::vec3       camera_pos_new    = {0.0f, 4.0f, 10.0f};
+	glm::vec3       camera_pos        = {0.0f, 140.0f, 1900.0f};
+	glm::vec3       camera_pos_new    = {0.0f, 140.0f, 1900.0f};
 	glm::vec3       camera_front      = {0.0f, 0.0f, -1.0f};
 	glm::vec3       camera_up         = {0.0f, 1.0f, 0.0f};
-	constexpr float camera_move_speed = 1.639f;
+	constexpr float camera_move_speed = 200.639f;
 
 	constexpr float p         = 1.0f / 100.0f;
 	constexpr float t         = 0.396f;
@@ -1077,7 +1077,7 @@ void VkApp::Update()
 				static_cast<float>(surface_capabilities_.currentExtent.width) /
 				static_cast<float>(surface_capabilities_.currentExtent.height),
 				0.1f,
-				125.0f),
+				10000.0f),
 		};
 
 		u_buffer.projection[1][1] *= -1;
@@ -1209,7 +1209,7 @@ void VkApp::Update()
 
 		vkCmdDrawIndexed(
 			command_buffer_,
-			300000,
+			299910,
 			1,
 			0,
 			0,

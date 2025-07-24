@@ -17,8 +17,7 @@ void Mesh::Load(const char* file_path, Batch* batch)
 		file_path,
 		aiProcess_Triangulate |
 		aiProcess_JoinIdenticalVertices |
-		aiProcess_FlipUVs |
-		aiProcess_GenNormals);
+		aiProcess_GenSmoothNormals);
 
 	if (!scene)
 	{
@@ -70,11 +69,18 @@ void Mesh::QueryVertecesPosition(
 	const aiScene*          scene,
 	std::vector<glm::vec3>& positions)
 {
+	// Rotation of -90 degrees around X axis
+	aiMatrix4x4 rotation;
+	aiMatrix4x4::RotationX(-AI_MATH_PI / 2, rotation);
+
+	aiMatrix4x4 rotation_z;
+	aiMatrix4x4::RotationZ(-AI_MATH_PI, rotation_z);
+
 	for (size_t i = 0; i < scene->mNumMeshes; i++)
 	{
 		for (size_t j = 0; j < scene->mMeshes[i]->mNumVertices; j++)
 		{
-			const aiVector3D& position = scene->mMeshes[i]->mVertices[j];
+			const aiVector3D& position = rotation * rotation_z * scene->mMeshes[i]->mVertices[j];
 			positions.push_back(glm::vec3(position.x, position.y, position.z));
 		}
 	}
@@ -84,11 +90,18 @@ void Mesh::QueryVertecesNormal(
 	const aiScene*          scene,
 	std::vector<glm::vec3>& normals)
 {
+	// Rotation of -90 degrees around X axis
+	aiMatrix4x4 rotation;
+	aiMatrix4x4::RotationZ(-AI_MATH_PI, rotation);
+
+	aiMatrix4x4 rotation_z;
+	aiMatrix4x4::RotationZ(-AI_MATH_PI, rotation_z);
+
 	for (size_t i = 0; i < scene->mNumMeshes; i++)
 	{
 		for (size_t j = 0; j < scene->mMeshes[i]->mNumVertices; j++)
 		{
-			const aiVector3D& normal = scene->mMeshes[i]->mNormals[j];
+			const aiVector3D& normal = rotation * rotation_z * scene->mMeshes[i]->mNormals[j];
 			normals.push_back(glm::vec3(normal.x, normal.y, normal.z));
 		}
 	}

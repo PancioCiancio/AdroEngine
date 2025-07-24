@@ -59,4 +59,5 @@ endif ()
 
 configure_file("${CMAKE_SOURCE_DIR}/Resources/Shaders/vert.spv" "${CMAKE_BINARY_DIR}/Resources/Shaders/vert.spv" COPYONLY)
 configure_file("${CMAKE_SOURCE_DIR}/Resources/Shaders/frag.spv" "${CMAKE_BINARY_DIR}/Resources/Shaders/frag.spv" COPYONLY)
-configure_file("${CMAKE_SOURCE_DIR}/Resources/Meshes/dragon.obj" "${CMAKE_BINARY_DIR}/Resources/Meshes/dragon.obj" COPYONLY)
+configure_file("${CMAKE_SOURCE_DIR}/Resources/Meshes/bunny.obj" "${CMAKE_BINARY_DIR}/Resources/Meshes/bunny.obj" COPYONLY)
+configure_file("${CMAKE_SOURCE_DIR}/Resources/Meshes/lucy.obj" "${CMAKE_BINARY_DIR}/Resources/Meshes/lucy.obj" COPYONLY)
