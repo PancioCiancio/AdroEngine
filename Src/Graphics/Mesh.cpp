@@ -73,14 +73,11 @@ void Mesh::QueryVertecesPosition(
 	aiMatrix4x4 rotation;
 	aiMatrix4x4::RotationX(-AI_MATH_PI / 2, rotation);
 
-	aiMatrix4x4 rotation_z;
-	aiMatrix4x4::RotationZ(-AI_MATH_PI, rotation_z);
-
 	for (size_t i = 0; i < scene->mNumMeshes; i++)
 	{
 		for (size_t j = 0; j < scene->mMeshes[i]->mNumVertices; j++)
 		{
-			const aiVector3D& position = rotation * rotation_z * scene->mMeshes[i]->mVertices[j];
+			const aiVector3D& position = rotation * scene->mMeshes[i]->mVertices[j];
 			positions.push_back(glm::vec3(position.x, position.y, position.z));
 		}
 	}
@@ -92,16 +89,13 @@ void Mesh::QueryVertecesNormal(
 {
 	// Rotation of -90 degrees around X axis
 	aiMatrix4x4 rotation;
-	aiMatrix4x4::RotationZ(-AI_MATH_PI, rotation);
-
-	aiMatrix4x4 rotation_z;
-	aiMatrix4x4::RotationZ(-AI_MATH_PI, rotation_z);
+	aiMatrix4x4::RotationX(-AI_MATH_PI / 2, rotation);
 
 	for (size_t i = 0; i < scene->mNumMeshes; i++)
 	{
 		for (size_t j = 0; j < scene->mMeshes[i]->mNumVertices; j++)
 		{
-			const aiVector3D& normal = rotation * rotation_z * scene->mMeshes[i]->mNormals[j];
+			const aiVector3D& normal = rotation * scene->mMeshes[i]->mNormals[j];
 			normals.push_back(glm::vec3(normal.x, normal.y, normal.z));
 		}
 	}

@@ -978,9 +978,9 @@ constexpr double targetFrameTime = 1000.0 / targetFPS; // in milliseconds
 void VkApp::Update()
 {
 	// Camera data
-	glm::vec3       camera_pos        = {0.0f, 140.0f, 1900.0f};
-	glm::vec3       camera_pos_new    = {0.0f, 140.0f, 1900.0f};
-	glm::vec3       camera_front      = {0.0f, 0.0f, -1.0f};
+	glm::vec3       camera_pos        = {0.0f, 140.0f, -1900.0f};
+	glm::vec3       camera_pos_new    = {0.0f, 140.0f, -1900.0f};
+	glm::vec3       camera_front      = {0.0f, 0.0f, 1.0f};
 	glm::vec3       camera_up         = {0.0f, 1.0f, 0.0f};
 	constexpr float camera_move_speed = 200.639f;
 
@@ -1072,7 +1072,7 @@ void VkApp::Update()
 				camera_pos + camera_front,
 				camera_up),
 
-			glm::perspective(
+			glm::perspectiveRH_ZO(
 				glm::radians(45.0f),
 				static_cast<float>(surface_capabilities_.currentExtent.width) /
 				static_cast<float>(surface_capabilities_.currentExtent.height),
@@ -1080,6 +1080,7 @@ void VkApp::Update()
 				10000.0f),
 		};
 
+		// Flip vulkan Y-axis
 		u_buffer.projection[1][1] *= -1;
 
 		VK_CHECK(vkMapMemory(
