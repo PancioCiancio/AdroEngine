@@ -14,13 +14,6 @@ class Graphics {
 public:
 	Graphics() = delete;
 
-	/// Debug mode only check.
-#define VK_CHECK(result)					\
-	do {                                    \
-		VkResult _vk_result = (result);     \
-		assert(_vk_result == VK_SUCCESS);	\
-	} while (0)
-
 	/// Mostly used to group swapchain images, views and framebuffers
 	/// @todo Presentation should be separated from base Graphics
 	struct PerFrame {
@@ -39,59 +32,6 @@ public:
 		glm::vec3 pos;
 		glm::vec3 color;
 	};
-
-	static void CreateInstance(
-		const std::vector<const char *> &layers_requested,
-		const std::vector<const char *> &extensions_requested,
-		VkAllocationCallbacks *p_allocator,
-		VkInstance *p_instance);
-
-	static VkDebugUtilsMessengerCreateInfoEXT GetDebugMessengerCreateInfo();
-
-	static void CreateDebugMessenger(
-		VkInstance instance,
-		VkAllocationCallbacks *p_allocator,
-		VkDebugUtilsMessengerEXT *p_debuge_messenger_ext);
-
-	static void QueryGpu(
-		VkInstance instance,
-		VkPhysicalDeviceFeatures fts_requested,
-		const std::vector<const char *> &extensions_requested,
-		VkPhysicalDevice *p_gpu);
-
-	static void QuerySampleCounts(
-		VkPhysicalDevice gpu,
-		VkSampleCountFlagBits *p_sample);
-
-	/// @todo Platform dependent. Consider to solve the platform implementation at static link time.
-	static void QueryQueueFamily(
-		VkPhysicalDevice gpu,
-		VkQueueFlagBits queue_flag_bits_requested,
-		bool must_support_presentation,
-		uint32_t family_idx_discarded_count,
-		const uint32_t *family_idx_discarded,
-		uint32_t *p_queue_family_idx);
-
-	static void CreateDevice(
-		VkPhysicalDevice gpu,
-		uint32_t queue_family_count,
-		const uint32_t *p_queue_families_idx,
-		const std::vector<const char *> &extensions,
-		const VkPhysicalDeviceFeatures *p_features,
-		const VkAllocationCallbacks *p_allocator,
-		VkDevice *p_device);
-
-	static void QuerySurfaceFormat(
-		VkPhysicalDevice gpu,
-		VkSurfaceKHR surface,
-		const std::vector<VkFormat> &formats_required,
-		VkSurfaceFormatKHR *p_format);
-
-	/// Query surface capabilities and fix image count and transform.
-	static void QuerySurfaceCapabilities(
-		VkPhysicalDevice gpu,
-		VkSurfaceKHR surface,
-		VkSurfaceCapabilitiesKHR *p_surface_capabilities);
 
 	static void CreateSwapchain(
 		VkDevice device,

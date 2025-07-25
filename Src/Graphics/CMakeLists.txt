@@ -7,8 +7,12 @@ add_library(
         STATIC
         "Graphics.cpp"
         "VkApp.cpp"
-        Include/Mesh.h
-        Mesh.cpp)
+        "Mesh.cpp"
+        "vk_instance.cpp"
+        "vk_debug_messenger.cpp"
+        "vk_physical_device.cpp"
+        "vk_device.cpp"
+        "vk_utils.cpp")
 
 target_include_directories(
         Graphics
@@ -32,8 +36,9 @@ target_compile_definitions(
         Graphics
         PRIVATE
         ${VK_USE_PLATFORM}
-        VK_NO_PROTOTYPES
-        GFX_VALIDATION_LAYERS)
+        VK_NO_PROTOTYPES)
+
+# @todo:    sdl2.dll and assimp.dll must be located in Binary/Src/ directory.
 
 if ("${CMAKE_BUILD_TYPE}" EQUAL "Debug")
     target_link_libraries(

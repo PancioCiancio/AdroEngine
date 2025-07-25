@@ -7,6 +7,11 @@
 #include "../FileSystem.h"
 #include "Include/Graphics.h"
 #include "Mesh.h"
+#include "vk_instance.h"
+#include "vk_physical_device.h"
+#include "vk_device.h"
+#include "vk_debug_messenger.h"
+#include "vk_utils.h"
 
 #define VOLK_IMPLEMENTATION
 #include <volk/volk.h>
@@ -87,17 +92,31 @@ void VkApp::Init()
 	// Create the custom allocator
 	allocator_ = static_cast<VkAllocationCallbacks>(Allocator());
 
-	Graphics::CreateInstance(
-		{"VK_LAYER_KHRONOS_validation"},
-		{VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-		 VK_KHR_SURFACE_EXTENSION_NAME,
-		 VK_KHR_WIN32_SURFACE_EXTENSION_NAME},
+	// @todo:	calculate the layers count from the array.
+	constexpr uint32_t requested_layer_count                   = 1;
+	const char*        requested_layers[requested_layer_count] = {
+		"VK_LAYER_KHRONOS_validation"
+	};
+
+	// @todo:	calculate the extension count from the array.
+	constexpr uint32_t requested_extension_count                       = 3;
+	const char*        requested_extensions[requested_extension_count] = {
+		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+		VK_KHR_SURFACE_EXTENSION_NAME,
+		VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+	};
+
+	Gfx::CreateInstance(
+		requested_layer_count,
+		requested_layers,
+		requested_extension_count,
+		requested_extensions,
 		nullptr,
 		&instance_);
 
 	volkLoadInstance(instance_);
 
-	Graphics::CreateDebugMessenger(
+	Gfx::CreateDebugMessenger(
 		instance_,
 		nullptr,
 		&debug_messenger_);
@@ -117,18 +136,21 @@ void VkApp::Init()
 		.multiDrawIndirect = VK_TRUE,
 	};
 
-	// List the required gpu extensions
-	const std::vector<const char*> device_extensions = {
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+	// @todo:	calculate the device extension count from the array.
+	constexpr uint32_t requested_device_ext_count                    = 1;
+	const char*        device_extensions[requested_device_ext_count] = {
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME
+	};
 
-	Graphics::QueryGpu(
+	Gfx::QueryGpu(
 		instance_,
 		gpu_required_features,
+		requested_device_ext_count,
 		device_extensions,
 		&gpu_);
 
 	uint32_t queue_family_index = 0;
-	Graphics::QueryQueueFamily(
+	Gfx::QueryQueueFamily(
 		gpu_,
 		VK_QUEUE_GRAPHICS_BIT,
 		true,
@@ -137,10 +159,11 @@ void VkApp::Init()
 		&queue_family_index);
 
 	constexpr uint32_t queue_family_count = 1;
-	Graphics::CreateDevice(
+	Gfx::CreateDevice(
 		gpu_,
 		queue_family_count,
 		&queue_family_index,
+		requested_device_ext_count,
 		device_extensions,
 		&gpu_required_features,
 		nullptr,
@@ -152,14 +175,20 @@ void VkApp::Init()
 		0,
 		&queue_);
 
+	constexpr uint32_t required_surface_format_count = 1;
+	VkFormat           required_surface_formats[1]   = {
+		VK_FORMAT_R8G8B8A8_SRGB,
+	};
+
 	VkSurfaceFormatKHR surface_format = {};
-	Graphics::QuerySurfaceFormat(
+	Gfx::QuerySurfaceFormat(
 		gpu_,
 		surface_,
-		{VK_FORMAT_R8G8B8A8_SRGB},
+		required_surface_format_count,
+		required_surface_formats,
 		&surface_format);
 
-	Graphics::QuerySurfaceCapabilities(
+	Gfx::QuerySurfaceCapabilities(
 		gpu_,
 		surface_,
 		&surface_capabilities_);
@@ -223,7 +252,7 @@ void VkApp::Init()
 
 	// Sample image resolver
 	VkSampleCountFlagBits sample_counts = VK_SAMPLE_COUNT_1_BIT;
-	Graphics::QuerySampleCounts(
+	Gfx::QuerySampleCounts(
 		gpu_,
 		&sample_counts);
 
