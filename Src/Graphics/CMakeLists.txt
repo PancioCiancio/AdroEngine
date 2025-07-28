@@ -12,7 +12,13 @@ add_library(
         "vk_debug_messenger.cpp"
         "vk_physical_device.cpp"
         "vk_device.cpp"
-        "vk_utils.cpp")
+        "vk_utils.cpp"
+        vk_swapchain.cpp
+        vk_command_pool.cpp
+        vk_command_buffer.cpp
+        vk_semaphore.cpp
+        vk_fence.cpp
+        vk_allocator.cpp)
 
 target_include_directories(
         Graphics

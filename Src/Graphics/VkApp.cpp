@@ -11,6 +11,12 @@
 #include "vk_physical_device.h"
 #include "vk_device.h"
 #include "vk_debug_messenger.h"
+#include "vk_swapchain.h"
+#include "vk_command_buffer.h"
+#include "vk_command_pool.h"
+#include "vk_fence.h"
+#include "vk_semaphore.h"
+#include "vk_allocator.h"
 #include "vk_utils.h"
 
 #define VOLK_IMPLEMENTATION
@@ -19,57 +25,6 @@
 #include <cassert>
 #include <sstream>
 #include <SDL2/SDL_vulkan.h>
-
-void* Allocator::Allocation(
-	void*                   pUserData,
-	size_t                  size,
-	size_t                  alignment,
-	VkSystemAllocationScope allocation_scope)
-{
-	return static_cast<Allocator*>(pUserData)->Allocation(size, alignment, allocation_scope);
-}
-
-void* Allocator::Reallocation(
-	void*                   pUserData,
-	void*                   pOriginal,
-	size_t                  size,
-	size_t                  alignment,
-	VkSystemAllocationScope allocation_scope)
-{
-	return static_cast<Allocator*>(pUserData)->Reallocation(pOriginal, size, alignment, allocation_scope);
-}
-
-void Allocator::Free(
-	void* pUserData,
-	void* pMemory)
-{
-	return static_cast<Allocator*>(pUserData)->Free(pMemory);
-}
-
-void* Allocator::Allocation(
-	size_t                  size,
-	size_t                  alignment,
-	VkSystemAllocationScope allocation_scope)
-{
-	return _aligned_malloc(
-		size,
-		alignment);
-}
-
-void* Allocator::Reallocation(
-	void*                   pOriginal,
-	size_t                  size,
-	size_t                  alignment,
-	VkSystemAllocationScope allocation_scope)
-{
-	return _aligned_realloc(pOriginal, size, alignment);
-}
-
-void Allocator::Free(
-	void* pMemory)
-{
-	return _aligned_free(pMemory);
-}
 
 
 void VkApp::Init()
@@ -90,7 +45,7 @@ void VkApp::Init()
 	VK_CHECK(volkInitialize());
 
 	// Create the custom allocator
-	allocator_ = static_cast<VkAllocationCallbacks>(Allocator());
+	allocator_ = static_cast<VkAllocationCallbacks>(Gfx::Allocator());
 
 	// @todo:	calculate the layers count from the array.
 	constexpr uint32_t requested_layer_count                   = 1;
@@ -134,6 +89,7 @@ void VkApp::Init()
 		.geometryShader = VK_TRUE,
 		.tessellationShader = VK_TRUE,
 		.multiDrawIndirect = VK_TRUE,
+		.fillModeNonSolid = VK_TRUE,
 	};
 
 	// @todo:	calculate the device extension count from the array.
@@ -193,7 +149,7 @@ void VkApp::Init()
 		surface_,
 		&surface_capabilities_);
 
-	Graphics::CreateSwapchain(
+	Gfx::CreateSwapchain(
 		device_,
 		surface_,
 		&surface_format,
@@ -228,7 +184,7 @@ void VkApp::Init()
 			&per_frame_data_memories_[i]);
 	}
 
-	Graphics::QuerySwapchainImages(
+	Gfx::QuerySwapchainImages(
 		device_,
 		swapchain_,
 		&presentation_frames_.images[0]);
@@ -320,31 +276,31 @@ void VkApp::Init()
 		nullptr,
 		&depth_stencil_image_view_);
 
-	Graphics::CreateCommandPool(
+	Gfx::CreateCommandPool(
 		device_,
 		VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		queue_family_index,
 		nullptr,
 		&command_pool_);
 
-	Graphics::CreateCommandBuffer(
+	Gfx::CreateCommandBuffer(
 		device_,
 		command_pool_,
 		&command_buffer_);
 
 	// Synchronization
 
-	Graphics::CreateSemaphore(
+	Gfx::CreateSemaphore(
 		device_,
 		nullptr,
 		&image_available_semaphore_);
 
-	Graphics::CreateSemaphore(
+	Gfx::CreateSemaphore(
 		device_,
 		nullptr,
 		&render_finished_semaphore_);
 
-	Graphics::CreateFence(
+	Gfx::CreateFence(
 		device_,
 		nullptr,
 		&submit_finished_fence_);
@@ -745,7 +701,7 @@ void VkApp::Init()
 		.flags = 0,
 		.depthClampEnable = VK_FALSE,
 		.rasterizerDiscardEnable = VK_FALSE,
-		.polygonMode = VK_POLYGON_MODE_FILL,
+		.polygonMode = VK_POLYGON_MODE_LINE,
 		.cullMode = VK_CULL_MODE_BACK_BIT,
 		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 		.depthBiasEnable = VK_FALSE,

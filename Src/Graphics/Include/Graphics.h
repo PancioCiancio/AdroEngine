@@ -33,49 +33,6 @@ public:
 		glm::vec3 color;
 	};
 
-	static void CreateSwapchain(
-		VkDevice device,
-		VkSurfaceKHR surface,
-		VkSurfaceFormatKHR *p_format,
-		VkSurfaceCapabilitiesKHR *p_capabilities,
-		VkSwapchainKHR old_swapchain,
-		VkAllocationCallbacks *p_allocator,
-		VkSwapchainKHR *p_swapchain);
-
-	/// @param p_swapchain_images the size must be VkSurfaceCapabilitiesKHR::minImageCount
-	///		   You can query such image count by calling QuerySurfaceCapabilities.
-	static void QuerySwapchainImages(
-		VkDevice device,
-		VkSwapchainKHR swapchain,
-		VkImage *p_swapchain_images);
-
-	static void CreateCommandPool(
-		VkDevice device,
-		VkCommandPoolCreateFlags flags,
-		uint32_t queue_family_idx,
-		VkAllocationCallbacks *p_allocator,
-		VkCommandPool *p_command_pool);
-
-	static void CreateCommandBuffer(
-		VkDevice device,
-		VkCommandPool command_pool,
-		VkCommandBuffer *p_command_buffer);
-
-	static void CreateSemaphore(
-		VkDevice device,
-		VkAllocationCallbacks *p_allocator,
-		VkSemaphore *p_semaphore);
-
-	static void CreateFence(
-		VkDevice device,
-		VkAllocationCallbacks *p_allocator,
-		VkFence *p_fence);
-
-	/// @todo Sketch implementation. Refactor it...
-	static uint32_t QueryMemoryTypeIdx(
-		uint32_t type_filter,
-		VkMemoryPropertyFlags memory_property_flags,
-		const VkPhysicalDeviceMemoryProperties &physical_device_memory_properties);
 
 	static void CreateShaderModule(
 		VkDevice device,
