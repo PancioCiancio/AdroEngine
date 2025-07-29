@@ -710,7 +710,7 @@ void VkApp::Init()
 		.flags = 0,
 		.depthClampEnable = VK_FALSE,
 		.rasterizerDiscardEnable = VK_FALSE,
-		.polygonMode = VK_POLYGON_MODE_LINE,
+		.polygonMode = VK_POLYGON_MODE_FILL,
 		.cullMode = VK_CULL_MODE_BACK_BIT,
 		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 		.depthBiasEnable = VK_FALSE,
@@ -828,13 +828,64 @@ void VkApp::Init()
 		.basePipelineIndex = -1,
 	};
 
+	constexpr VkPipelineRasterizationStateCreateInfo rasterization_info_wireframe = {
+		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.depthClampEnable = VK_FALSE,
+		.rasterizerDiscardEnable = VK_FALSE,
+		.polygonMode = VK_POLYGON_MODE_LINE,
+		.cullMode = VK_CULL_MODE_BACK_BIT,
+		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+		.depthBiasEnable = VK_FALSE,
+		.depthBiasConstantFactor = 0.0f,
+		.depthBiasClamp = 0.0f,
+		.depthBiasSlopeFactor = 0.0f,
+		.lineWidth = 1.0f,
+	};
+
+	const VkGraphicsPipelineCreateInfo pipeline_info_wireframe = {
+		.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.stageCount = 2,
+		.pStages = shaderStages,
+		.pVertexInputState = &vertex_input_info,
+		.pInputAssemblyState = &input_assembly_info,
+		.pTessellationState = nullptr,
+		.pViewportState = &viewport_info,
+		.pRasterizationState = &rasterization_info_wireframe,
+		.pMultisampleState = &multisample_info,
+		.pDepthStencilState = &depth_stencil_state_create_info,
+		.pColorBlendState = &color_blend_info,
+		.pDynamicState = &dynamic_state_create_info,
+		.layout = pipeline_layout_,
+		.renderPass = render_pass_,
+		.subpass = 0,
+		.basePipelineHandle = VK_NULL_HANDLE,
+		.basePipelineIndex = -1,
+	};
+
+	VkGraphicsPipelineCreateInfo pipeline_infos[] = {
+		pipeline_info,
+		pipeline_info_wireframe,
+	};
+
+	VkPipeline pipelines[] = {
+		pipeline_,
+		pipeline_wireframe_,
+	};
+
 	VK_CHECK(vkCreateGraphicsPipelines(
 		device_,
 		VK_NULL_HANDLE,
-		1,
-		&pipeline_info,
+		2,
+		&pipeline_infos[0],
 		nullptr,
-		&pipeline_));
+		&pipelines[0]));
+
+	pipeline_           = pipelines[0];
+	pipeline_wireframe_ = pipelines[1];
 
 	const VkDescriptorPoolSize pool_size = {
 		.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -982,6 +1033,8 @@ void VkApp::Update()
 	constexpr float t         = 0.396f;
 	const float     half_time = -t / glm::log2(p);
 
+	VkPipeline chosen_pipeline = pipeline_;
+
 	bool stillRunning = true;
 	while (stillRunning)
 	{
@@ -1035,6 +1088,15 @@ void VkApp::Update()
 			camera_pos_new += glm::normalize(glm::cross(camera_front, camera_up)) * camera_move_speed *
 				static_cast<
 					float>(deltaTime);
+		}
+
+		if (key_states[SDL_SCANCODE_Q])
+		{
+			chosen_pipeline = pipeline_wireframe_;
+		}
+		else if (key_states[SDL_SCANCODE_E])
+		{
+			chosen_pipeline = pipeline_;
 		}
 
 		camera_pos = glm::mix(camera_pos, camera_pos_new, camera_lerp_alpha);
@@ -1152,7 +1214,7 @@ void VkApp::Update()
 		vkCmdBindPipeline(
 			command_buffer_,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			pipeline_);
+			chosen_pipeline);
 
 		const VkViewport viewport = {
 			.x = 0.0f,

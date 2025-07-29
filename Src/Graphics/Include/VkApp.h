@@ -47,18 +47,19 @@ public:
 	void TearDown() const;
 
 private:
-	VkAllocationCallbacks         allocator_       = {};
-	VkInstance                    instance_        = {};
-	VkDebugUtilsMessengerEXT      debug_messenger_ = {};
-	std::vector<VkPhysicalDevice> gpus_            = {};
-	VkPhysicalDevice              gpu_             = {};
-	uint8_t                       gpu_selected_    = {};
-	VkDevice                      device_          = {};
-	VkQueue                       queue_           = {};
-	VkCommandPool                 command_pool_    = {};
-	VkCommandBuffer               command_buffer_  = {};
-	VkPipelineLayout              pipeline_layout_ = {};
-	VkPipeline                    pipeline_        = {};
+	VkAllocationCallbacks         allocator_          = {};
+	VkInstance                    instance_           = {};
+	VkDebugUtilsMessengerEXT      debug_messenger_    = {};
+	std::vector<VkPhysicalDevice> gpus_               = {};
+	VkPhysicalDevice              gpu_                = {};
+	uint8_t                       gpu_selected_       = {};
+	VkDevice                      device_             = {};
+	VkQueue                       queue_              = {};
+	VkCommandPool                 command_pool_       = {};
+	VkCommandBuffer               command_buffer_     = {};
+	VkPipelineLayout              pipeline_layout_    = {};
+	VkPipeline                    pipeline_           = {};
+	VkPipeline                    pipeline_wireframe_ = {};
 
 	SDL_Window*    window_                    = {};
 	VkSurfaceKHR   surface_                   = {};
