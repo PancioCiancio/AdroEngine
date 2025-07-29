@@ -18,7 +18,10 @@ add_library(
         vk_command_buffer.cpp
         vk_semaphore.cpp
         vk_fence.cpp
-        vk_allocator.cpp)
+        vk_allocator.cpp
+        vk_image.cpp
+        vk_buffer.cpp
+        vk_shader_module.cpp)
 
 target_include_directories(
         Graphics

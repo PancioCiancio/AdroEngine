@@ -7,7 +7,6 @@
 
 // std
 #include <stdlib.h>
-#include <cassert>
 
 
 namespace Gfx
@@ -69,6 +68,15 @@ void CreateInstance(
 		&create_info,
 		p_allocator,
 		p_instance));
+}
+
+void DestroyInstance(
+	VkInstance             instance,
+	VkAllocationCallbacks* p_allocator)
+{
+	vkDestroyInstance(
+		instance,
+		p_allocator);
 }
 }
 

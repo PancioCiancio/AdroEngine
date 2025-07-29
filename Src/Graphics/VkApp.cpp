@@ -18,6 +18,9 @@
 #include "vk_semaphore.h"
 #include "vk_allocator.h"
 #include "vk_utils.h"
+#include "vk_image.h"
+#include "vk_shader_module.h"
+#include "vk_buffer.h"
 
 #define VOLK_IMPLEMENTATION
 #include <volk/volk.h>
@@ -173,7 +176,7 @@ void VkApp::Init()
 	{
 		constexpr VkDeviceSize buffer_size = sizeof(Graphics::PerFrameData);
 
-		Graphics::CreateBuffer(
+		Gfx::CreateBuffer(
 			device_,
 			gpu_,
 			buffer_size,
@@ -191,7 +194,7 @@ void VkApp::Init()
 
 	for (uint32_t i = 0; i < surface_capabilities_.minImageCount; i++)
 	{
-		Graphics::CreateImageView(
+		Gfx::CreateImageView(
 			device_,
 			presentation_frames_.images[i],
 			VK_IMAGE_ASPECT_COLOR_BIT,
@@ -212,7 +215,7 @@ void VkApp::Init()
 		gpu_,
 		&sample_counts);
 
-	Graphics::CreateImage(
+	Gfx::CreateImage(
 		device_,
 		gpu_,
 		VK_IMAGE_TYPE_2D,
@@ -230,7 +233,7 @@ void VkApp::Init()
 		&framebuffer_sample_image_,
 		&framebuffer_sample_image_memory_);
 
-	Graphics::CreateImageView(
+	Gfx::CreateImageView(
 		device_,
 		framebuffer_sample_image_,
 		VK_IMAGE_ASPECT_COLOR_BIT,
@@ -247,7 +250,7 @@ void VkApp::Init()
 
 	// Depth + Stencil
 
-	Graphics::CreateImage(
+	Gfx::CreateImage(
 		device_,
 		gpu_,
 		VK_IMAGE_TYPE_2D,
@@ -261,7 +264,7 @@ void VkApp::Init()
 		&depth_stencil_image_,
 		&depth_stencil_memory_);
 
-	Graphics::CreateImageView(
+	Gfx::CreateImageView(
 		device_,
 		depth_stencil_image_,
 		VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
@@ -311,7 +314,7 @@ void VkApp::Init()
 	batch.color = default_colors;
 
 	const size_t position_buffer_size = sizeof(glm::vec3) * batch.position.size();
-	Graphics::CreateBuffer(
+	Gfx::CreateBuffer(
 		device_,
 		gpu_,
 		position_buffer_size,
@@ -340,7 +343,7 @@ void VkApp::Init()
 		batch_render_.position_memory);
 
 	const size_t normal_buffer_size = sizeof(glm::vec3) * batch.normals.size();
-	Graphics::CreateBuffer(
+	Gfx::CreateBuffer(
 		device_,
 		gpu_,
 		normal_buffer_size,
@@ -369,7 +372,7 @@ void VkApp::Init()
 		batch_render_.normal_memory);
 
 	const size_t color_buffer_size = sizeof(glm::vec4) * batch.color.size();
-	Graphics::CreateBuffer(
+	Gfx::CreateBuffer(
 		device_,
 		gpu_,
 		color_buffer_size,
@@ -398,7 +401,7 @@ void VkApp::Init()
 		batch_render_.color_memory);
 
 	const size_t index_buffer_size = sizeof(uint32_t) * batch.indices.size();
-	Graphics::CreateBuffer(
+	Gfx::CreateBuffer(
 		device_,
 		gpu_,
 		index_buffer_size,
@@ -427,6 +430,9 @@ void VkApp::Init()
 		batch_render_.index_memory);
 
 	// Render Pass
+
+	// @todo:	Render pass is per-application implementation.
+	//			We can provide the most common ones in another library that depends on Graphics.
 
 	const VkAttachmentDescription color_attachment = {
 		.flags = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -556,21 +562,24 @@ void VkApp::Init()
 			&presentation_frames_.framebuffers[i]));
 	}
 
-	// Vulkan Pipeline
+	// @todo:	Pipelines are per-application specific as well.
+	//			We should provide the most common ones in another library that depends on Graphics.
 
 	auto vert_shader_code = FileSystem::ReadFile("../Resources/Shaders/vert.spv");
 	auto frag_shader_code = FileSystem::ReadFile("../Resources/Shaders/frag.spv");
 
 	VkShaderModule shader_modules[2] = {};
-	Graphics::CreateShaderModule(
+	Gfx::CreateShaderModule(
 		device_,
-		vert_shader_code,
+		static_cast<uint32_t>(vert_shader_code.size()),
+		vert_shader_code.data(),
 		nullptr,
 		&shader_modules[0]);
 
-	Graphics::CreateShaderModule(
+	Gfx::CreateShaderModule(
 		device_,
-		frag_shader_code,
+		static_cast<uint32_t>(frag_shader_code.size()),
+		frag_shader_code.data(),
 		nullptr,
 		&shader_modules[1]);
 
@@ -1029,6 +1038,9 @@ void VkApp::Update()
 		}
 
 		camera_pos = glm::mix(camera_pos, camera_pos_new, camera_lerp_alpha);
+
+		// @todo:	Since render pass and pipelines are per-application specific,
+		//			Also the loop should be. We can provide an example code and let the final application implement it.
 
 		vkWaitForFences(
 			device_,
