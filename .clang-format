@@ -14,9 +14,7 @@ PointerAlignment: Left
 
 # Function declaration formatting
 AllowAllParametersOfDeclarationOnNextLine: false
-AllowAllArgumentsOnNextLine: false
-AlwaysBreakAfterReturnType: None
-AlwaysBreakAfterDefinitionReturnType: None
+AllowAllArgumentsOnNextLine: true
 
 # Control statement spacing
 SpaceAfterCStyleCast: true
@@ -25,7 +23,7 @@ SpaceInEmptyParentheses: false
 
 # Keep function call arguments compact
 BinPackArguments: false
-BinPackParameters: false
+BinPackParameters: AlwaysOnePerLine
 
 # Column width
 ColumnLimit: 120
