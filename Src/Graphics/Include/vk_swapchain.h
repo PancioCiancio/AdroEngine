@@ -18,6 +18,11 @@ void CreateSwapchain(
 	VkAllocationCallbacks*    p_allocator,
 	VkSwapchainKHR*           p_swapchain);
 
+void DestroySwapchain(
+	VkDevice               device,
+	VkSwapchainKHR         swapchain,
+	VkAllocationCallbacks* p_allocator);
+
 /// @param p_swapchain_images the size must be VkSurfaceCapabilitiesKHR::minImageCount
 ///		   You can query such image count by calling QuerySurfaceCapabilities.
 void QuerySwapchainImages(

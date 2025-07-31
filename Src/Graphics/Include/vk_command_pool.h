@@ -15,6 +15,11 @@ void CreateCommandPool(
 	uint32_t                 queue_family_idx,
 	VkAllocationCallbacks*   p_allocator,
 	VkCommandPool*           p_command_pool);
+
+void DestroyCommandPool(
+	VkDevice               device,
+	VkCommandPool          command_pool,
+	VkAllocationCallbacks* p_allocator);
 }
 
 #endif //VK_COMMAND_POOL_H

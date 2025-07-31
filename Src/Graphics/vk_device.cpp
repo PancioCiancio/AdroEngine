@@ -50,4 +50,13 @@ void CreateDevice(
 		p_allocator,
 		p_device));
 }
+
+void DestroyDevice(
+	VkDevice               device,
+	VkAllocationCallbacks* p_allocator)
+{
+	vkDestroyDevice(
+		device,
+		p_allocator);
+}
 }

@@ -45,6 +45,17 @@ void CreateSwapchain(
 		p_swapchain));
 }
 
+void DestroySwapchain(
+	VkDevice               device,
+	VkSwapchainKHR         swapchain,
+	VkAllocationCallbacks* p_allocator)
+{
+	vkDestroySwapchainKHR(
+		device,
+		swapchain,
+		p_allocator);
+}
+
 void QuerySwapchainImages(
 	VkDevice       device,
 	VkSwapchainKHR swapchain,

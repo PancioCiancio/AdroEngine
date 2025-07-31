@@ -60,6 +60,15 @@ void CreateBuffer(
 	VK_CHECK(vkBindBufferMemory(device, *p_buffer, *p_memory, 0));
 }
 
+void DestroyBuffer(VkDevice device, VkBuffer buffer, VkAllocationCallbacks* p_allocator)
+{
+	vkDestroyBuffer(
+		device,
+		buffer,
+		p_allocator);
+}
+
+
 void CreateBufferView(
 	VkDevice               device,
 	VkBuffer               buffer,
@@ -84,5 +93,16 @@ void CreateBufferView(
 		&buffer_view_create_info,
 		p_allocator,
 		p_buffer_view));
+}
+
+void DestroyBufferView(
+	VkDevice               device,
+	VkBufferView           buffer_view,
+	VkAllocationCallbacks* p_allocator)
+{
+	vkDestroyBufferView(
+		device,
+		buffer_view,
+		p_allocator);
 }
 }

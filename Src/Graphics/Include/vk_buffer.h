@@ -20,6 +20,11 @@ void CreateBuffer(
 	VkBuffer*              p_buffer,
 	VkDeviceMemory*        p_memory);
 
+void DestroyBuffer(
+	VkDevice               device,
+	VkBuffer               buffer,
+	VkAllocationCallbacks* p_allocator);
+
 /// @warning	Provided buffer must be valid.
 void CreateBufferView(
 	VkDevice               device,
@@ -29,6 +34,11 @@ void CreateBufferView(
 	VkDeviceSize           range,
 	VkAllocationCallbacks* p_allocator,
 	VkBufferView*          p_buffer_view);
+
+void DestroyBufferView(
+	VkDevice               device,
+	VkBufferView           buffer_view,
+	VkAllocationCallbacks* p_allocator)
 }
 
 #endif //VK_BUFFER_H

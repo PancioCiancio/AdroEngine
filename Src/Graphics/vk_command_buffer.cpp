@@ -26,4 +26,13 @@ void CreateCommandBuffer(
 		&command_buffer_allocate_info,
 		p_command_buffer));
 }
+
+void ResetCommandBuffer(
+	VkCommandBuffer           command_buffer,
+	VkCommandBufferResetFlags flags)
+{
+	VK_CHECK(vkResetCommandBuffer(
+		command_buffer,
+		flags));
+}
 }

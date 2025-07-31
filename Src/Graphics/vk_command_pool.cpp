@@ -27,4 +27,15 @@ void CreateCommandPool(
 		p_allocator,
 		p_command_pool));
 }
+
+void DestroyCommandPool(
+	VkDevice               device,
+	VkCommandPool          command_pool,
+	VkAllocationCallbacks* p_allocator)
+{
+	vkDestroyCommandPool(
+		device,
+		command_pool,
+		p_allocator);
+}
 }

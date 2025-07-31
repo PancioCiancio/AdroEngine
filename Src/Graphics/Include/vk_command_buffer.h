@@ -16,6 +16,10 @@ void CreateCommandBuffer(
 	VkCommandPool    command_pool,
 	VkCommandBuffer* p_command_buffer);
 
+void ResetCommandBuffer(
+	VkCommandBuffer           command_buffer,
+	VkCommandBufferResetFlags flags);
+
 }
 
 

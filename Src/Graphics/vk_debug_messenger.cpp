@@ -71,4 +71,16 @@ void CreateDebugMessenger(
 		p_allocator,
 		p_debuge_messenger_ext);
 }
+
+
+void DestroyDebugMessenger(
+	VkInstance               instance,
+	VkDebugUtilsMessengerEXT debug_messenger,
+	VkAllocationCallbacks*   p_allocator)
+{
+	vkDestroyDebugUtilsMessengerEXT(
+		instance,
+		debug_messenger,
+		p_allocator);
+}
 }
