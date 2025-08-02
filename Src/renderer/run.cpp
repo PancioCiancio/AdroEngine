@@ -30,6 +30,11 @@ void Renderer::init()
 	init_surface();
 	init_device();
 	init_swapchain();
+	init_other_images();
+	init_command();
+	init_batch();
+	init_renderpass();
+	init_pipeline();
 }
 
 void Renderer::init_instance()
@@ -60,7 +65,7 @@ void Renderer::init_instance()
 
 	vk_create_debug_messenger(
 		instance_,
-		nullptrm
+		nullptr
 		& debug_messenger_);
 }
 
@@ -108,7 +113,7 @@ void Renderer::init_device()
 		gpu_,
 		queue_family_count,
 		&queue_family_idx_,
-		requested_device_ext_count,
+		1,
 		device_extensions,
 		&gpu_required_features,
 		nullptr,
@@ -125,7 +130,6 @@ void Renderer::init_device()
 
 void Renderer::init_swapchain()
 {
-
 	VkFormat required_surface_formats[1] = {
 		VK_FORMAT_R8G8B8A8_SRGB,
 	};
@@ -134,7 +138,7 @@ void Renderer::init_swapchain()
 	vk_query_surface_format(
 		gpu_,
 		surface_,
-		required_surface_format_count,
+		1,
 		required_surface_formats,
 		&surface_format);
 
@@ -153,7 +157,7 @@ void Renderer::init_swapchain()
 		nullptr,
 		&swapchain_);
 
-	vk_query_swapchain_image_format(
+	vk_query_swapchain_images(
 		device_,
 		swapchain_,
 		&presentation_frames_.images[0]);
@@ -162,7 +166,7 @@ void Renderer::init_swapchain()
 	for (uint32_t i = 0; i < surface_capabilities_.minImageCount; ++i)
 	{
 		vk_create_image_view(
-			device,
+			device_,
 			presentation_frames_.images[i],
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_IMAGE_VIEW_TYPE_2D,
@@ -188,13 +192,13 @@ void Renderer::init_swapchain()
 			device_,
 			&semaphore_create_info,
 			nullptr,
-			presentation_frames_.render_finished_semaphores[i]));
+			&presentation_frames_.render_finished_semaphores[i]));
 
 		VK_CHECK(vkCreateSemaphore(
 			device_,
 			&semaphore_create_info,
 			nullptr,
-			presentation_frames_.image_available_semaphores[i]));
+			&presentation_frames_.image_available_semaphores[i]));
 
 		VkFenceCreateInfo fence_info = {
 			.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -203,10 +207,10 @@ void Renderer::init_swapchain()
 		};
 
 		VK_CHECK(vkCreateFence(
-			device,
+			device_,
 			&fence_info,
 			nullptr,
-			presentation_frames_.render_finished_fences[i]));
+			&presentation_frames_.submit_finished_fences[i]));
 	}
 }
 
@@ -304,12 +308,12 @@ void Renderer::init_command()
 	const VkCommandPoolCreateInfo command_pool_create_info = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 		.pNext = nullptr,
-		.flags = flags,
+		.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		.queueFamilyIndex = queue_family_idx_,
 	};
 
 	VK_CHECK(vkCreateCommandPool(
-		device,
+		device_,
 		&command_pool_create_info,
 		nullptr,
 		&command_pool_));
@@ -323,16 +327,16 @@ void Renderer::init_command()
 	};
 
 	VK_CHECK(vkAllocateCommandBuffers(
-		device,
+		device_,
 		&command_buffer_allocate_info,
 		&command_buffer_));
 }
 
 void Renderer::init_batch()
 {
-	Mesh::Load("../Resources/Meshes/lucy.obj", &batch_data_);
-	std::vector<glm::vec4> default_colors(batch_data_.position.size(), glm::vec4(.5f, .5f, .5f, 1.0f));
-	batch_data_.color = default_colors;
+	// Mesh::Load("../Resources/Meshes/lucy.obj", &batch_data_);
+	// std::vector<glm::vec4> default_colors(batch_data_.position.size(), glm::vec4(.5f, .5f, .5f, 1.0f));
+	// batch_data_.color = default_colors;
 
 	const size_t position_buffer_size = sizeof(glm::vec3) * batch_data_.position.size();
 	vk_create_buffer(
@@ -392,7 +396,7 @@ void Renderer::init_batch()
 		device_,
 		batch_.normal_mem);
 
-	const size_t color_buffer_size = sizeof(glm::vec4) * batch.color.size();
+	const size_t color_buffer_size = sizeof(glm::vec4) * batch_data_.color.size();
 	vk_create_buffer(
 		device_,
 		gpu_,
@@ -421,7 +425,7 @@ void Renderer::init_batch()
 		device_,
 		batch_.color_mem);
 
-	const size_t index_buffer_size = sizeof(uint32_t) * batch.indices.size();
+	const size_t index_buffer_size = sizeof(uint32_t) * batch_data_.indices.size();
 	vk_create_buffer(
 		device_,
 		gpu_,
@@ -451,7 +455,7 @@ void Renderer::init_batch()
 		batch_.index_mem);
 }
 
-void Renderer::init_render_pass()
+void Renderer::init_renderpass()
 {
 	const VkAttachmentDescription color_attachment = {
 		.flags = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -570,7 +574,7 @@ void Renderer::init_pipeline()
 	};
 
 	VK_CHECK(vkCreateShaderModule(
-		device,
+		device_,
 		&create_info,
 		nullptr,
 		&shader_modules[0]));
@@ -584,7 +588,7 @@ void Renderer::init_pipeline()
 	};
 
 	VK_CHECK(vkCreateShaderModule(
-		device,
+		device_,
 		&create_info,
 		nullptr,
 		&shader_modules[1]));

@@ -100,7 +100,7 @@ private:
 
 	void init_batch();
 
-	void init_render_pass();
+	void init_renderpass();
 
 	void init_pipeline();
 
@@ -112,6 +112,7 @@ private:
 	VkDebugUtilsMessengerEXT      debug_messenger_      = {};
 	std::vector<VkPhysicalDevice> gpus_                 = {};
 	VkPhysicalDevice              gpu_                  = {};
+	VkDevice                      device_               = {};
 	VkQueue                       queue_                = {};
 	uint32_t                      queue_family_idx_     = {};
 	VkCommandPool                 command_pool_         = {};
