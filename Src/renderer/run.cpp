@@ -1,41 +1,20 @@
 //
-// Created by apant on 05/07/2025.
+// Created by apant on 02/08/2025.
 //
 
-#include "Include/VkApp.h"
+#include "run.h"
+#include "common.h"
 
-#include "../FileSystem.h"
-#include "Include/Graphics.h"
-#include "Mesh.h"
-#include "vk_instance.h"
-#include "vk_physical_device.h"
-#include "vk_device.h"
-#include "vk_debug_messenger.h"
-#include "vk_swapchain.h"
-#include "vk_command_buffer.h"
-#include "vk_command_pool.h"
-#include "vk_fence.h"
-#include "vk_semaphore.h"
-#include "vk_allocator.h"
-#include "vk_utils.h"
-#include "vk_image.h"
-#include "vk_shader_module.h"
-#include "vk_buffer.h"
-
-#define VOLK_IMPLEMENTATION
-#include <volk/volk.h>
-
-#include <cassert>
-#include <sstream>
 #include <SDL2/SDL_vulkan.h>
 
-
-void VkApp::Init()
+namespace Renderer
+{
+void Renderer::init()
 {
 	// Init the window class
 	VK_CHECK((SDL_Init(SDL_INIT_VIDEO) == 0)
-		? VK_SUCCESS
-		: VK_ERROR_UNKNOWN);
+		         ? VK_SUCCESS
+		         : VK_ERROR_UNKNOWN);
 
 	window_ = SDL_CreateWindow(
 		"Adro Engine",
@@ -47,47 +26,56 @@ void VkApp::Init()
 
 	VK_CHECK(volkInitialize());
 
-	// Create the custom allocator
-	allocator_ = static_cast<VkAllocationCallbacks>(Gfx::Allocator());
+	init_instance();
+	init_surface();
+	init_device();
+	init_swapchain();
+}
+
+void Renderer::init_instance()
+{
+	VK_CHECK(volkInitialize());
 
 	// @todo:	calculate the layers count from the array.
-	constexpr uint32_t requested_layer_count                   = 1;
-	const char*        requested_layers[requested_layer_count] = {
+	const char* requested_layers[] = {
 		"VK_LAYER_KHRONOS_validation"
 	};
 
 	// @todo:	calculate the extension count from the array.
-	constexpr uint32_t requested_extension_count                       = 3;
-	const char*        requested_extensions[requested_extension_count] = {
+	const char* requested_extensions[] = {
 		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
 		VK_KHR_SURFACE_EXTENSION_NAME,
 		VK_KHR_WIN32_SURFACE_EXTENSION_NAME
 	};
 
-	Gfx::CreateInstance(
-		requested_layer_count,
+	vk_create_instance(
+		1,
 		requested_layers,
-		requested_extension_count,
+		3,
 		requested_extensions,
 		nullptr,
 		&instance_);
 
 	volkLoadInstance(instance_);
 
-	Gfx::CreateDebugMessenger(
+	vk_create_debug_messenger(
 		instance_,
-		nullptr,
-		&debug_messenger_);
+		nullptrm
+		& debug_messenger_);
+}
 
-	// Create the surface
+void Renderer::init_surface()
+{
 	VK_CHECK(SDL_Vulkan_CreateSurface(
-			window_,
-			instance_,
-			&surface_)
-		? VK_SUCCESS
-		: VK_ERROR_UNKNOWN);
+		         window_,
+		         instance_,
+		         &surface_)
+		         ? VK_SUCCESS
+		         : VK_ERROR_INITIALIZATION_FAILED);
+}
 
-	// List the required gpu features
+void Renderer::init_device()
+{
 	const VkPhysicalDeviceFeatures gpu_required_features = {
 		.geometryShader = VK_TRUE,
 		.tessellationShader = VK_TRUE,
@@ -96,63 +84,66 @@ void VkApp::Init()
 	};
 
 	// @todo:	calculate the device extension count from the array.
-	constexpr uint32_t requested_device_ext_count                    = 1;
-	const char*        device_extensions[requested_device_ext_count] = {
+	const char* device_extensions[] = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
 
-	Gfx::QueryGpu(
+	vk_query_gpu(
 		instance_,
 		gpu_required_features,
-		requested_device_ext_count,
+		1,
 		device_extensions,
 		&gpu_);
 
-	uint32_t queue_family_index = 0;
-	Gfx::QueryQueueFamily(
+	vk_query_queue_family(
 		gpu_,
 		VK_QUEUE_GRAPHICS_BIT,
 		true,
 		0,
 		nullptr,
-		&queue_family_index);
+		&queue_family_idx_);
 
 	constexpr uint32_t queue_family_count = 1;
-	Gfx::CreateDevice(
+	vk_create_device(
 		gpu_,
 		queue_family_count,
-		&queue_family_index,
+		&queue_family_idx_,
 		requested_device_ext_count,
 		device_extensions,
 		&gpu_required_features,
 		nullptr,
 		&device_);
 
+	volkLoadDevice(device_);
+
 	vkGetDeviceQueue(
 		device_,
-		queue_family_index,
+		queue_family_idx_,
 		0,
 		&queue_);
+}
 
-	constexpr uint32_t required_surface_format_count = 1;
-	VkFormat           required_surface_formats[1]   = {
+void Renderer::init_swapchain()
+{
+
+	VkFormat required_surface_formats[1] = {
 		VK_FORMAT_R8G8B8A8_SRGB,
 	};
 
 	VkSurfaceFormatKHR surface_format = {};
-	Gfx::QuerySurfaceFormat(
+	vk_query_surface_format(
 		gpu_,
 		surface_,
 		required_surface_format_count,
 		required_surface_formats,
 		&surface_format);
 
-	Gfx::QuerySurfaceCapabilities(
+	vk_query_surface_capabilities(
 		gpu_,
 		surface_,
 		&surface_capabilities_);
 
-	Gfx::CreateSwapchain(
+	vk_create_swapchain(
 		device_,
 		surface_,
 		&surface_format,
@@ -162,40 +153,16 @@ void VkApp::Init()
 		nullptr,
 		&swapchain_);
 
-	// Resize per-frame presentation
-	presentation_frames_.images.resize(surface_capabilities_.minImageCount);
-	presentation_frames_.image_views.resize(surface_capabilities_.minImageCount);
-	presentation_frames_.framebuffers.resize(surface_capabilities_.minImageCount);
-
-	// Resize per-frame data (Uniform Buffer)
-	per_frame_data_buffers_.resize(surface_capabilities_.minImageCount);
-	per_frame_data_mapped_.resize(surface_capabilities_.minImageCount);
-	per_frame_data_memories_.resize(surface_capabilities_.minImageCount);
-
-	for (uint32_t i = 0; i < surface_capabilities_.minImageCount; i++)
-	{
-		constexpr VkDeviceSize buffer_size = sizeof(Graphics::PerFrameData);
-
-		Gfx::CreateBuffer(
-			device_,
-			gpu_,
-			buffer_size,
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			nullptr,
-			&per_frame_data_buffers_[i],
-			&per_frame_data_memories_[i]);
-	}
-
-	Gfx::QuerySwapchainImages(
+	vk_query_swapchain_image_format(
 		device_,
 		swapchain_,
 		&presentation_frames_.images[0]);
 
-	for (uint32_t i = 0; i < surface_capabilities_.minImageCount; i++)
+	// Create the view of the swapchain images
+	for (uint32_t i = 0; i < surface_capabilities_.minImageCount; ++i)
 	{
-		Gfx::CreateImageView(
-			device_,
+		vk_create_image_view(
+			device,
 			presentation_frames_.images[i],
 			VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_IMAGE_VIEW_TYPE_2D,
@@ -209,13 +176,48 @@ void VkApp::Init()
 			&presentation_frames_.image_views[i]);
 	}
 
-	// Sample image resolver
+	for (uint32_t i = 0; i < surface_capabilities_.minImageCount; ++i)
+	{
+		const VkSemaphoreCreateInfo semaphore_create_info = {
+			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+			.pNext = nullptr,
+			.flags = 0,
+		};
+
+		VK_CHECK(vkCreateSemaphore(
+			device_,
+			&semaphore_create_info,
+			nullptr,
+			presentation_frames_.render_finished_semaphores[i]));
+
+		VK_CHECK(vkCreateSemaphore(
+			device_,
+			&semaphore_create_info,
+			nullptr,
+			presentation_frames_.image_available_semaphores[i]));
+
+		VkFenceCreateInfo fence_info = {
+			.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+			.pNext = nullptr,
+			.flags = VK_FENCE_CREATE_SIGNALED_BIT,
+		};
+
+		VK_CHECK(vkCreateFence(
+			device,
+			&fence_info,
+			nullptr,
+			presentation_frames_.render_finished_fences[i]));
+	}
+}
+
+void Renderer::init_other_images()
+{
 	VkSampleCountFlagBits sample_counts = VK_SAMPLE_COUNT_1_BIT;
-	Gfx::QuerySampleCounts(
+	vk_query_sample_counts(
 		gpu_,
 		&sample_counts);
 
-	Gfx::CreateImage(
+	vk_create_image(
 		device_,
 		gpu_,
 		VK_IMAGE_TYPE_2D,
@@ -233,7 +235,7 @@ void VkApp::Init()
 		&framebuffer_sample_image_,
 		&framebuffer_sample_image_memory_);
 
-	Gfx::CreateImageView(
+	vk_create_image_view(
 		device_,
 		framebuffer_sample_image_,
 		VK_IMAGE_ASPECT_COLOR_BIT,
@@ -259,7 +261,7 @@ void VkApp::Init()
 
 	VkFormat depth_stencil_format = {};
 
-	Gfx::QuerySupportedFormat(
+	vk_query_supported_format(
 		gpu_,
 		4,
 		&depth_stencil_format_requested[0],
@@ -267,7 +269,7 @@ void VkApp::Init()
 		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT,
 		&depth_stencil_format);
 
-	Gfx::CreateImage(
+	vk_create_image(
 		device_,
 		gpu_,
 		VK_IMAGE_TYPE_2D,
@@ -281,7 +283,7 @@ void VkApp::Init()
 		&depth_stencil_image_,
 		&depth_stencil_memory_);
 
-	Gfx::CreateImageView(
+	vk_create_image_view(
 		device_,
 		depth_stencil_image_,
 		VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
@@ -295,56 +297,58 @@ void VkApp::Init()
 		},
 		nullptr,
 		&depth_stencil_image_view_);
+}
 
-	Gfx::CreateCommandPool(
-		device_,
-		VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-		queue_family_index,
+void Renderer::init_command()
+{
+	const VkCommandPoolCreateInfo command_pool_create_info = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = flags,
+		.queueFamilyIndex = queue_family_idx_,
+	};
+
+	VK_CHECK(vkCreateCommandPool(
+		device,
+		&command_pool_create_info,
 		nullptr,
-		&command_pool_);
+		&command_pool_));
 
-	Gfx::CreateCommandBuffer(
-		device_,
-		command_pool_,
-		&command_buffer_);
+	const VkCommandBufferAllocateInfo command_buffer_allocate_info = {
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.pNext = nullptr,
+		.commandPool = command_pool_,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1
+	};
 
-	// Synchronization
+	VK_CHECK(vkAllocateCommandBuffers(
+		device,
+		&command_buffer_allocate_info,
+		&command_buffer_));
+}
 
-	Gfx::CreateSemaphore(
-		device_,
-		nullptr,
-		&image_available_semaphore_);
+void Renderer::init_batch()
+{
+	Mesh::Load("../Resources/Meshes/lucy.obj", &batch_data_);
+	std::vector<glm::vec4> default_colors(batch_data_.position.size(), glm::vec4(.5f, .5f, .5f, 1.0f));
+	batch_data_.color = default_colors;
 
-	Gfx::CreateSemaphore(
-		device_,
-		nullptr,
-		&render_finished_semaphore_);
-
-	Gfx::CreateFence(
-		device_,
-		nullptr,
-		&submit_finished_fence_);
-
-	Batch batch = {};
-	Mesh::Load("../Resources/Meshes/lucy.obj", &batch);
-	std::vector<glm::vec4> default_colors(batch.position.size(), glm::vec4(.5f, .5f, .5f, 1.0f));
-	batch.color = default_colors;
-
-	const size_t position_buffer_size = sizeof(glm::vec3) * batch.position.size();
-	Gfx::CreateBuffer(
+	const size_t position_buffer_size = sizeof(glm::vec3) * batch_data_.position.size();
+	vk_create_buffer(
 		device_,
 		gpu_,
 		position_buffer_size,
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
 		nullptr,
-		&batch_render_.position_buffer,
-		&batch_render_.position_memory);
+		&batch_.position_buffer,
+		&batch_.position_mem);
 
 	void* position_data = nullptr;
 	VK_CHECK(vkMapMemory(
 		device_,
-		batch_render_.position_memory,
+		batch_.position_mem,
 		0,
 		position_buffer_size,
 		0,
@@ -352,28 +356,28 @@ void VkApp::Init()
 
 	memcpy(
 		position_data,
-		&batch.position[0],
+		&batch_data_.position[0],
 		position_buffer_size);
 
 	vkUnmapMemory(
 		device_,
-		batch_render_.position_memory);
+		batch_.position_mem);
 
-	const size_t normal_buffer_size = sizeof(glm::vec3) * batch.normals.size();
-	Gfx::CreateBuffer(
+	const size_t normal_buffer_size = sizeof(glm::vec3) * batch_data_.normals.size();
+	vk_create_buffer(
 		device_,
 		gpu_,
 		normal_buffer_size,
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
 		nullptr,
-		&batch_render_.normal_buffer,
-		&batch_render_.normal_memory);
+		&batch_.normal_buffer,
+		&batch_.normal_mem);
 
 	void* normal_data = nullptr;
 	VK_CHECK(vkMapMemory(
 		device_,
-		batch_render_.normal_memory,
+		batch_.normal_mem,
 		0,
 		normal_buffer_size,
 		0,
@@ -381,28 +385,28 @@ void VkApp::Init()
 
 	memcpy(
 		normal_data,
-		&batch.normals[0],
+		&batch_data_.normals[0],
 		normal_buffer_size);
 
 	vkUnmapMemory(
 		device_,
-		batch_render_.normal_memory);
+		batch_.normal_mem);
 
 	const size_t color_buffer_size = sizeof(glm::vec4) * batch.color.size();
-	Gfx::CreateBuffer(
+	vk_create_buffer(
 		device_,
 		gpu_,
 		color_buffer_size,
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
 		nullptr,
-		&batch_render_.color_buffer,
-		&batch_render_.color_memory);
+		&batch_.color_buffer,
+		&batch_.color_mem);
 
 	void* color_data = nullptr;
 	VK_CHECK(vkMapMemory(
 		device_,
-		batch_render_.color_memory,
+		batch_.color_mem,
 		0,
 		color_buffer_size,
 		0,
@@ -410,28 +414,28 @@ void VkApp::Init()
 
 	memcpy(
 		color_data,
-		&batch.color[0],
+		&batch_data_.color[0],
 		color_buffer_size);
 
 	vkUnmapMemory(
 		device_,
-		batch_render_.color_memory);
+		batch_.color_mem);
 
 	const size_t index_buffer_size = sizeof(uint32_t) * batch.indices.size();
-	Gfx::CreateBuffer(
+	vk_create_buffer(
 		device_,
 		gpu_,
 		index_buffer_size,
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
 		nullptr,
-		&batch_render_.index_buffer,
-		&batch_render_.index_memory);
+		&batch_.index_buffer,
+		&batch_.index_mem);
 
 	void* index_data = nullptr;
 	VK_CHECK(vkMapMemory(
 		device_,
-		batch_render_.index_memory,
+		batch_.index_mem,
 		0,
 		index_buffer_size,
 		0,
@@ -439,18 +443,16 @@ void VkApp::Init()
 
 	memcpy(
 		index_data,
-		&batch.indices[0],
+		&batch_data_.indices[0],
 		index_buffer_size);
 
 	vkUnmapMemory(
 		device_,
-		batch_render_.index_memory);
+		batch_.index_mem);
+}
 
-	// Render Pass
-
-	// @todo:	Render pass is per-application implementation.
-	//			We can provide the most common ones in another library that depends on Graphics.
-
+void Renderer::init_render_pass()
+{
 	const VkAttachmentDescription color_attachment = {
 		.flags = VK_ATTACHMENT_LOAD_OP_CLEAR,
 		.format = surface_format.format,
@@ -550,55 +552,42 @@ void VkApp::Init()
 		&render_pass_create_info,
 		nullptr,
 		&render_pass_));
+}
 
-	for (size_t i = 0; i < surface_capabilities_.minImageCount; i++)
-	{
-		constexpr uint32_t attachments_count              = 3;
-		const VkImageView  attachments[attachments_count] = {
-			framebuffer_sample_image_view_, // Multisample
-			depth_stencil_image_view_,
-			presentation_frames_.image_views[i], // Multisample resolver to 1 sample.
-		};
-
-		VkFramebufferCreateInfo framebuffer_info = {
-			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-			.pNext = nullptr,
-			.flags = 0,
-			.renderPass = render_pass_,
-			.attachmentCount = attachments_count,
-			.pAttachments = &attachments[0],
-			.width = surface_capabilities_.currentExtent.width,
-			.height = surface_capabilities_.currentExtent.height,
-			.layers = 1,
-		};
-
-		VK_CHECK(vkCreateFramebuffer(
-			device_,
-			&framebuffer_info,
-			nullptr,
-			&presentation_frames_.framebuffers[i]));
-	}
-
-	// @todo:	Pipelines are per-application specific as well.
-	//			We should provide the most common ones in another library that depends on Graphics.
-
+void Renderer::init_pipeline()
+{
 	auto vert_shader_code = FileSystem::ReadFile("../Resources/Shaders/vert.spv");
 	auto frag_shader_code = FileSystem::ReadFile("../Resources/Shaders/frag.spv");
 
 	VkShaderModule shader_modules[2] = {};
-	Gfx::CreateShaderModule(
-		device_,
-		static_cast<uint32_t>(vert_shader_code.size()),
-		vert_shader_code.data(),
-		nullptr,
-		&shader_modules[0]);
 
-	Gfx::CreateShaderModule(
-		device_,
-		static_cast<uint32_t>(frag_shader_code.size()),
-		frag_shader_code.data(),
+	const VkShaderModuleCreateInfo create_info = {
+		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.codeSize = static_cast<uint32_t>(vert_shader_code.size()),
+		.pCode = reinterpret_cast<const uint32_t*>(vert_shader_code.data()),
+	};
+
+	VK_CHECK(vkCreateShaderModule(
+		device,
+		&create_info,
 		nullptr,
-		&shader_modules[1]);
+		&shader_modules[0]));
+
+	const VkShaderModuleCreateInfo create_info = {
+		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+		.pNext = nullptr,
+		.flags = 0,
+		.codeSize = static_cast<uint32_t>(frag_shader_code.size()),
+		.pCode = reinterpret_cast<const uint32_t*>(frag_shader_code.data()),
+	};
+
+	VK_CHECK(vkCreateShaderModule(
+		device,
+		&create_info,
+		nullptr,
+		&shader_modules[1]));
 
 	const VkPipelineShaderStageCreateInfo vert_shader_stage_create_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -736,6 +725,11 @@ void VkApp::Init()
 		.depthBiasSlopeFactor = 0.0f,
 		.lineWidth = 1.0f,
 	};
+
+	VkSampleCountFlagBits sample_counts = VK_SAMPLE_COUNT_1_BIT;
+	vk_query_sample_counts(
+		gpu_,
+		&sample_counts);
 
 	const VkPipelineMultisampleStateCreateInfo multisample_info = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
@@ -968,396 +962,5 @@ void VkApp::Init()
 
 	vkDestroyShaderModule(device_, shader_modules[0], nullptr);
 	vkDestroyShaderModule(device_, shader_modules[1], nullptr);
-
-	// Transition depth + stencil image layout.
-
-	const VkCommandBufferBeginInfo command_buffer_begin_info = {
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-	};
-
-	vkBeginCommandBuffer(
-		command_buffer_,
-		&command_buffer_begin_info);
-
-	const VkImageMemoryBarrier barrier = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-		.srcAccessMask = 0,
-		.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-		.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-		.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-		.image = depth_stencil_image_,
-		.subresourceRange = {
-			.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
-			.baseMipLevel = 0,
-			.levelCount = 1,
-			.baseArrayLayer = 0,
-			.layerCount = 1,
-		},
-	};
-
-	const VkPipelineStageFlags source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-	const VkPipelineStageFlags destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-
-	vkCmdPipelineBarrier(
-		command_buffer_,
-		source_stage,
-		destination_stage,
-		0,
-		0,
-		nullptr,
-		0,
-		nullptr,
-		1,
-		&barrier);
-
-	vkEndCommandBuffer(command_buffer_);
-
-	const VkSubmitInfo submit_info = {
-		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-		.commandBufferCount = 1,
-		.pCommandBuffers = &command_buffer_
-	};
-
-	vkQueueSubmit(
-		queue_,
-		1,
-		&submit_info,
-		VK_NULL_HANDLE);
-
-	vkQueueWaitIdle(queue_);
 }
-
-// Timing variables
-Uint64 NOW       = SDL_GetPerformanceCounter();
-Uint64 LAST      = 0;
-double deltaTime = 0;
-
-// Target frame rate (optional)
-constexpr int    targetFPS       = 60;
-constexpr double targetFrameTime = 1000.0 / targetFPS; // in milliseconds
-
-void VkApp::Update()
-{
-	// Camera data
-	glm::vec3       camera_pos        = {0.0f, 140.0f, -1900.0f};
-	glm::vec3       camera_pos_new    = {0.0f, 140.0f, -1900.0f};
-	glm::vec3       camera_front      = {0.0f, 0.0f, 1.0f};
-	glm::vec3       camera_up         = {0.0f, 1.0f, 0.0f};
-	constexpr float camera_move_speed = 200.639f;
-
-	constexpr float p         = 1.0f / 100.0f;
-	constexpr float t         = 0.396f;
-	const float     half_time = -t / glm::log2(p);
-
-	VkPipeline chosen_pipeline = pipeline_;
-
-	bool stillRunning = true;
-	while (stillRunning)
-	{
-		LAST = NOW;
-		NOW  = SDL_GetPerformanceCounter();
-
-		// Calculate delta time in seconds
-		deltaTime = static_cast<double>(NOW - LAST) / static_cast<double>(SDL_GetPerformanceFrequency());
-
-		const float camera_lerp_alpha = 1.0f - glm::pow(2.0f, -static_cast<float>(deltaTime) / half_time);
-
-		SDL_Event event;
-
-		// Input state
-
-		while (SDL_PollEvent(&event))
-		{
-			switch (event.type)
-			{
-			case SDL_QUIT:
-				stillRunning = false;
-				break;
-
-			default:
-				// Do nothing.
-				break;
-			}
-		}
-
-		const Uint8* key_states = SDL_GetKeyboardState(nullptr);
-
-		if (key_states[SDL_SCANCODE_W])
-		{
-			camera_pos_new += camera_move_speed * static_cast<float>(deltaTime) * camera_front;
-		}
-
-		if (key_states[SDL_SCANCODE_S])
-		{
-			camera_pos_new -= camera_move_speed * static_cast<float>(deltaTime) * camera_front;
-		}
-
-		if (key_states[SDL_SCANCODE_A])
-		{
-			camera_pos_new -= glm::normalize(glm::cross(camera_front, camera_up)) * camera_move_speed *
-				static_cast<
-					float>(deltaTime);
-		}
-
-		if (key_states[SDL_SCANCODE_D])
-		{
-			camera_pos_new += glm::normalize(glm::cross(camera_front, camera_up)) * camera_move_speed *
-				static_cast<
-					float>(deltaTime);
-		}
-
-		if (key_states[SDL_SCANCODE_Q])
-		{
-			chosen_pipeline = pipeline_wireframe_;
-		}
-		else if (key_states[SDL_SCANCODE_E])
-		{
-			chosen_pipeline = pipeline_;
-		}
-
-		camera_pos = glm::mix(camera_pos, camera_pos_new, camera_lerp_alpha);
-
-		// @todo:	Since render pass and pipelines are per-application specific,
-		//			Also the loop should be. We can provide an example code and let the final application implement it.
-
-		vkWaitForFences(
-			device_,
-			1,
-			&submit_finished_fence_,
-			VK_TRUE,
-			UINT64_MAX);
-
-		vkResetFences(
-			device_,
-			1,
-			&submit_finished_fence_);
-
-		uint32_t next_image = 0u;
-		VK_CHECK(vkAcquireNextImageKHR(
-			device_,
-			swapchain_,
-			UINT64_MAX,
-			image_available_semaphore_,
-			VK_NULL_HANDLE,
-			&next_image));
-
-		Graphics::PerFrameData u_buffer = {
-			glm::lookAt(
-				camera_pos,
-				camera_pos + camera_front,
-				camera_up),
-
-			glm::perspectiveRH_ZO(
-				glm::radians(45.0f),
-				static_cast<float>(surface_capabilities_.currentExtent.width) /
-				static_cast<float>(surface_capabilities_.currentExtent.height),
-				0.1f,
-				10000.0f),
-		};
-
-		// Flip vulkan Y-axis
-		u_buffer.projection[1][1] *= -1;
-
-		VK_CHECK(vkMapMemory(
-			device_,
-			per_frame_data_memories_[next_image],
-			0,
-			sizeof(u_buffer),
-			0,
-			&per_frame_data_mapped_[next_image]));
-
-		constexpr size_t u_buffer_size = sizeof(Graphics::PerFrameData);
-
-		memcpy(per_frame_data_mapped_[next_image], &u_buffer, u_buffer_size);
-
-		vkUnmapMemory(
-			device_,
-			per_frame_data_memories_[next_image]);
-
-		const VkCommandBufferBeginInfo begin_info = {
-			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-			.pNext = nullptr,
-			.flags = 0,
-			.pInheritanceInfo = nullptr,
-		};
-
-		VK_CHECK(vkResetCommandBuffer(
-			command_buffer_,
-			0));
-
-		VK_CHECK(vkBeginCommandBuffer(
-			command_buffer_,
-			&begin_info));
-
-		vkCmdBindDescriptorSets(
-			command_buffer_,
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			pipeline_layout_,
-			0,
-			1,
-			&descriptor_sets_[next_image],
-			0,
-			nullptr);
-
-		constexpr VkClearValue clear_value[2] = {
-			{
-				.color = {
-					.float32 = {0.0f, 0.0f, 0.0f, 1.0f}}
-			},
-			{
-				.depthStencil = {1.0f, 0},
-			}
-		};
-
-		VkRenderPassBeginInfo render_pass_begin_info = {
-			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-			.pNext = nullptr,
-			.renderPass = render_pass_,
-			.framebuffer = presentation_frames_.framebuffers[next_image],
-			.renderArea = {
-				.offset = {0, 0},
-				.extent = surface_capabilities_.currentExtent,
-			},
-			.clearValueCount = 2,
-			.pClearValues = &clear_value[0],
-		};
-
-		vkCmdBeginRenderPass(
-			command_buffer_,
-			&render_pass_begin_info,
-			VK_SUBPASS_CONTENTS_INLINE);
-
-		vkCmdBindPipeline(
-			command_buffer_,
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			chosen_pipeline);
-
-		const VkViewport viewport = {
-			.x = 0.0f,
-			.y = 0.0f,
-			.width = static_cast<float>(surface_capabilities_.currentExtent.width),
-			.height = static_cast<float>(surface_capabilities_.currentExtent.height),
-			.minDepth = 0.0f,
-			.maxDepth = 1.0f,
-		};
-
-		vkCmdSetViewport(
-			command_buffer_,
-			0,
-			1,
-			&viewport);
-
-		const VkRect2D scissor = {
-			.offset = {0, 0},
-			.extent = surface_capabilities_.currentExtent,
-		};
-
-		vkCmdSetScissor(
-			command_buffer_,
-			0,
-			1,
-			&scissor);
-
-		const VkBuffer binds_buffer[] = {
-			batch_render_.position_buffer,
-			batch_render_.color_buffer,
-			batch_render_.normal_buffer,
-		};
-
-		const VkDeviceSize offsets[] = {
-			0,
-			0,
-			0
-		};
-
-		vkCmdBindVertexBuffers(
-			command_buffer_,
-			0,
-			3,
-			&binds_buffer[0],
-			&offsets[0]);
-
-		vkCmdBindIndexBuffer(
-			command_buffer_,
-			batch_render_.index_buffer,
-			0,
-			VK_INDEX_TYPE_UINT32);
-
-		vkCmdDrawIndexed(
-			command_buffer_,
-			299910,
-			1,
-			0,
-			0,
-			0);
-
-		vkCmdEndRenderPass(
-			command_buffer_);
-
-		VK_CHECK(vkEndCommandBuffer(
-			command_buffer_));
-
-		VkSemaphore wait_semaphores[] = {
-			image_available_semaphore_};
-		VkPipelineStageFlags wait_stages[] = {
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-		VkSemaphore signal_semaphores[] = {
-			render_finished_semaphore_};
-
-		VkSubmitInfo submit_info = {
-			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-			.pNext = nullptr,
-			.waitSemaphoreCount = 1,
-			.pWaitSemaphores = wait_semaphores,
-			.pWaitDstStageMask = wait_stages,
-			.commandBufferCount = 1,
-			.pCommandBuffers = &command_buffer_,
-			.signalSemaphoreCount = 1,
-			.pSignalSemaphores = signal_semaphores,
-		};
-
-		VK_CHECK(vkQueueSubmit(
-			queue_,
-			1,
-			&submit_info,
-			submit_finished_fence_));
-
-		VkResult               result       = {};
-		const VkPresentInfoKHR present_info = {
-			.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-			.waitSemaphoreCount = 1,
-			.pWaitSemaphores = &render_finished_semaphore_,
-			.swapchainCount = 1,
-			.pSwapchains = &swapchain_,
-			.pImageIndices = &next_image,
-			.pResults = &result,
-		};
-
-		// @todo: cannot present the image if the window is minimized.
-		VK_CHECK(vkQueuePresentKHR(queue_, &present_info));
-
-		// --- Your game update & render logic here ---
-		// Example: updateGame(deltaTime); render();
-
-		// Frame limiting: Sleep if frame is faster than target frame time
-		if (deltaTime < targetFrameTime)
-		{
-			SDL_Delay(static_cast<Uint32>(targetFrameTime - deltaTime));
-		}
-	}
-}
-
-void VkApp::TearDown() const
-{
-	VK_CHECK(vkDeviceWaitIdle(device_));
-
-	vkDestroySwapchainKHR(device_, swapchain_, nullptr);
-	vkFreeCommandBuffers(device_, command_pool_, 1, &command_buffer_);
-	vkDestroyCommandPool(device_, command_pool_, nullptr);
-	vkDestroyDevice(device_, nullptr);
-	vkDestroyInstance(instance_, nullptr);
-
-	SDL_DestroyWindow(window_);
-	SDL_Quit();
-}
+} // Renderer

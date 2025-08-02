@@ -1,19 +1,9 @@
-# To Do:
+# Graphics (GFX)
 
-- [ ] Understand vulkan coordinates, projection matrix, cull mode, front face, assimp geometry generation and fix the
-  code.
+GFX is a vulkan library wrapper which should make it easier to initialize all vulkan objects and reducing the
+boilerplate code.
 
-# Allocation
+## Why?
 
-## Vulkan (gpu)
-
-- All vulkan resources are allocated using the default allocator (for now)
-
-## Allocation Per Frame Data (cpu):
-
-- View matrix
-- Projection matrix
-
-## Allocation Per Object Data (cpu):
-
-- Model matrix
+Vulkan provides a lot of flexibility and many calls are redundant. This library remove the redundancy and limits
+the flexibility.

@@ -8,19 +8,11 @@ add_library(
         "Graphics.cpp"
         "VkApp.cpp"
         "Mesh.cpp"
-        "vk_instance.cpp"
-        "vk_debug_messenger.cpp"
-        "vk_physical_device.cpp"
-        "vk_device.cpp"
-        "vk_utils.cpp"
-        vk_swapchain.cpp
         vk_command_pool.cpp
         vk_command_buffer.cpp
         vk_semaphore.cpp
         vk_fence.cpp
         vk_allocator.cpp
-        vk_image.cpp
-        vk_buffer.cpp
         vk_shader_module.cpp)
 
 target_include_directories(

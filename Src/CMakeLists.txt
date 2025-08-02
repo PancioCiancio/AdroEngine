@@ -6,8 +6,7 @@ add_executable(
         Engine
         main.cpp
         FileSystem.h
-        FileSystem.cpp
-)
+        FileSystem.cpp)
 
 target_link_libraries(
         Engine
@@ -17,12 +16,14 @@ target_link_libraries(
 target_include_directories(
         Engine
         PRIVATE
-        Graphics/Include
-)
+        Graphics/Include)
+
+target_include_directories(
+        Engine
+        PRIVATE
+        renderer/include)
 
 target_compile_definitions(
         Engine
         PRIVATE
-        SDL_MAIN_HANDLED
-)
-
+        SDL_MAIN_HANDLED)

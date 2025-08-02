@@ -52,7 +52,6 @@ private:
 	VkDebugUtilsMessengerEXT      debug_messenger_    = {};
 	std::vector<VkPhysicalDevice> gpus_               = {};
 	VkPhysicalDevice              gpu_                = {};
-	uint8_t                       gpu_selected_       = {};
 	VkDevice                      device_             = {};
 	VkQueue                       queue_              = {};
 	VkCommandPool                 command_pool_       = {};
